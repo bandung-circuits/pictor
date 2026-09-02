@@ -1,0 +1,16 @@
+.env
+.venv/
+workspace/
+demo/
+__pycache__/
+*.pyc
+.DS_Store
+*.pdf
+node_modules/
+.npm-cache/
+*.log
+research/github-refs/
+references/paper/*.pdf
+
+test-results/
+playwright-report/

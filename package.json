@@ -1,0 +1,80 @@
+{
+  "name": "dsh-pictor",
+  "version": "0.1.0",
+  "description": "Pictor：文档转信息图工作台。每项目一个连贯 dsh 会话，GUI 为 shell.overlay 工作台（左栏项目、右栏三步：提取/方案/渲染），行为全部交给 DSH 智能运行时。",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bandung-circuits/pictor.git"
+  },
+  "homepage": "https://github.com/bandung-circuits/pictor",
+  "bugs": {
+    "url": "https://github.com/bandung-circuits/pictor/issues"
+  },
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "agents",
+    "references/domain",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "assets"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "verify": "node scripts/build.mjs && node verify.mjs",
+    "verify:integration": "bash scripts/transport-smoke.sh",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts --project chromium",
+    "verify:live": "playwright test --config e2e/playwright.config.ts --project live",
+    "prepare": "node scripts/build.mjs"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-theme": "^0.1.0-rc.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "esbuild": "^0.28.2"
+  }
+}

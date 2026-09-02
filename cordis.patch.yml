@@ -1,0 +1,8 @@
+# dsh-pictor bundle patch.
+#
+# 挂载方式与 dsh-editor 一致：`dsh plugin add` 或手动加 profile 的
+# dsh.profile.bundles 后，profile 启动按本 patch 把 host 半插件行插入。
+
+- insert:
+    - id: dsh-pictor
+      name: 'dsh-pictor'

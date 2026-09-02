@@ -1,0 +1,78 @@
+# Pictor 学术可视化类型注册表
+#
+# 每种类型对应一个 layout（参见 references/domain/layouts/）。
+# 标 fallback 的表示当前尚无专用 layout，使用近似 layout 渲染，存在语义损失。
+#
+# 已有专用 layout 的基础类型（不在此列）：
+#   hierarchy          → hierarchical-layers
+#   concept-decomposition → tree-branching
+#   timeline           → linear-progression
+#   cycle              → circular-flow
+
+types:
+  # --- 关系与结构 ---
+
+  - id: network-graph
+    name: Network Graph
+    layout: network-graph
+    file: network-graph.md
+
+  - id: stakeholder-matrix
+    name: Stakeholder Matrix
+    layout: quadrant-matrix
+    file: stakeholder-matrix.md
+
+  # --- 论证与论辩 ---
+
+  - id: toulmin-diagram
+    name: Toulmin Diagram
+    layout: toulmin-argument
+    file: toulmin-diagram.md
+
+  - id: debate-map
+    name: Debate Map
+    layout: binary-comparison  # fallback
+    file: debate-map.md
+
+  - id: greimas-square
+    name: Greimas Square
+    layout: binary-comparison  # fallback
+    file: greimas-square.md
+
+  # --- 流程与周期 ---
+
+  - id: sankey-flow
+    name: Sankey Flow Diagram
+    layout: sankey-flow
+    file: sankey-flow.md
+
+  # --- 时间与演变 ---
+
+  - id: parallel-timeline
+    name: Parallel Timeline
+    layout: parallel-tracks
+    file: parallel-timeline.md
+
+  # --- 评估与定位 ---
+
+  - id: evidence-radar
+    name: Evidence Radar
+    layout: dashboard  # fallback
+    file: evidence-radar.md
+
+  - id: quadrant
+    name: Quadrant Chart
+    layout: quadrant-matrix
+    file: quadrant.md
+
+  # --- 空间与全景 ---
+
+  - id: landscape
+    name: Landscape Map
+    layout: bento-grid  # fallback
+    file: landscape.md
+
+  - id: geographic-map
+    name: Geographic Map
+    layout: geo-map
+    file: geographic-map.md
