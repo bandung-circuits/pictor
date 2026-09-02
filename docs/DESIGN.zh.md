@@ -4,7 +4,7 @@
 
 对应代码位：
 
-- `01.tools/pictor`（本仓库，POMASA 版声明式 MAS 与插件本体）
+- `03.systems/pictor`（本仓库，POMASA 版声明式 MAS 与插件本体）
 - `03.systems/pomasa-studio`（形态参考：dsh 插件工作台、数据流向、UI 选型，其 `docs/UI.md` 与 `docs/DESIGN.md` 是本稿的平台经验来源）
 - `03.systems/pictorial`（对照来源：项目概念与三张步骤页的布局）
 
