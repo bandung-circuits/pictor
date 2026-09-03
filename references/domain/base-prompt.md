@@ -1,4 +1,4 @@
-Create a professional infographic. This prompt separates how to render from what to render: the Layout and Style sections are visual specifications (structure and aesthetic — they describe the look, not the subject); the Content section is the subject matter, data, and labels to put in the infographic.
+Create a professional infographic. This prompt separates what to render from how to render it: the Content section is the subject matter, data, and labels to put in the infographic; the Layout and Style sections are visual specifications (structure and aesthetic — they describe the look, not the subject). Put the content in first, then apply the layout and style to present it.
 
 ## Image Specifications
 
@@ -7,6 +7,13 @@ Create a professional infographic. This prompt separates how to render from what
 - **Style**: {{STYLE}}
 - **Aspect Ratio**: {{ASPECT_RATIO}}
 - **Language**: {{LANGUAGE}}
+
+## Content — the subject matter, data, and labels to render
+
+{{CONTENT}}
+
+Text labels (in {{LANGUAGE}}):
+{{TEXT_LABELS}}
 
 ## Core Principles
 
@@ -33,12 +40,3 @@ Create a professional infographic. This prompt separates how to render from what
 ## Style Guidelines — visual aesthetic (how it looks; not subject matter)
 
 {{STYLE_GUIDELINES}}
-
----
-
-## Content — the subject matter, data, and labels to render
-
-{{CONTENT}}
-
-Text labels (in {{LANGUAGE}}):
-{{TEXT_LABELS}}
