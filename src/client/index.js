@@ -299,6 +299,7 @@ const I18N = {
     layoutLabel: '布局', styleLabel: '风格', metaConfirmedHint: '确认后作为项目名与提取依据，可编辑。',
     chooseLayout: '选择布局', chooseStyle: '选择风格', resetToAi: '回到 AI 推荐',
     layoutChanged: '·已改', aiSuggestion: 'AI 推荐',
+    batchStyleLabel: '批量设置风格', batchStyleHint: '为所选方案套用同一风格（未选则全部）',
     close: '关闭',
     discussion: '讨论', discussHint: '对项目会话自由说话：补充参考、要求搜索、调整方向。你的决定会在同一会话里接着执行。',
     discussPlaceholder: '例如：先不要继续，帮我查一下这篇文章提到的背景…',
@@ -356,6 +357,7 @@ const I18N = {
     layoutLabel: 'Layout', styleLabel: 'Style', metaConfirmedHint: 'Confirmed as the project name and extraction basis; editable.',
     chooseLayout: 'Choose layout', chooseStyle: 'Choose style', resetToAi: 'Reset to AI',
     layoutChanged: '· edited', aiSuggestion: 'AI',
+    batchStyleLabel: 'Batch style', batchStyleHint: 'Apply one style to all selected proposals (all if none selected)',
     close: 'Close',
     discussion: 'Discussion', discussHint: 'Talk to the project session: add context, ask for research, adjust direction. Your decisions continue it in the same session.',
     discussPlaceholder: 'e.g. Hold on — research the background this article mentions…',
@@ -789,9 +791,17 @@ function ProposalsPanel({ stage, proposals, suggestedStyle, steps, selected, onT
   const ratioFor = (id) => ratios[id] || '16:9'
   const activePrompt = promptId ? proposals.find((x) => x.id === promptId) || null : null
 
+  function batchTargetIds() {
+    return selected.length ? selected : proposals.map((p) => p.id)
+  }
   function pickOption(name) {
     const cur = pick
     if (!cur) return
+    if (cur.batch) {
+      batchTargetIds().forEach((id) => setSty(id, name))
+      setPick(null)
+      return
+    }
     if (cur.kind === 'layout') setLay(cur.id, name)
     else setSty(cur.id, name)
     setPick(null)
@@ -799,6 +809,11 @@ function ProposalsPanel({ stage, proposals, suggestedStyle, steps, selected, onT
   function resetCurrent() {
     const cur = pick
     if (!cur) return
+    if (cur.batch) {
+      batchTargetIds().forEach((id) => setSty(id, undefined))
+      setPick(null)
+      return
+    }
     if (cur.kind === 'layout') setLay(cur.id, undefined)
     else setSty(cur.id, undefined)
     setPick(null)
@@ -855,34 +870,60 @@ function ProposalsPanel({ stage, proposals, suggestedStyle, steps, selected, onT
     : null
 
   const chooserModal = pick ? (function chooser() {
-    const p = proposals.find((x) => x.id === pick.id)
-    if (!p) return null
     const kind = pick.kind
+    const batch = Boolean(pick.batch)
+    const p = batch ? null : proposals.find((x) => x.id === pick.id)
+    if (!batch && !p) return null
     const list = kind === 'layout'
-      ? (layouts && layouts.length ? layouts : [p.suggested_layout])
-      : (styles && styles.length ? styles : [p.suggested_style || suggestedStyle])
-    const base = kind === 'layout' ? p.suggested_layout : (p.suggested_style || suggestedStyle)
-    const current = kind === 'layout' ? (lay[pick.id] || p.suggested_layout) : (sty[pick.id] || p.suggested_style || suggestedStyle)
-    const changed = kind === 'layout'
-      ? Boolean(lay[pick.id] && lay[pick.id] !== base)
-      : Boolean(sty[pick.id] && sty[pick.id] !== base)
+      ? (layouts && layouts.length ? layouts : (p ? [p.suggested_layout] : []))
+      : (styles && styles.length ? styles : (p ? [p.suggested_style || suggestedStyle] : (suggestedStyle ? [suggestedStyle] : [])))
+    const base = batch ? '' : (kind === 'layout' ? p.suggested_layout : (p.suggested_style || suggestedStyle))
+    // batch：高亮所有目标方案共享的同一风格（若有），否则不高亮
+    let current
+    if (batch) {
+      const ids = batchTargetIds()
+      const eff = ids.map((id) => {
+        const pp = proposals.find((x) => x.id === id)
+        return (pp ? (sty[id] || pp.suggested_style || suggestedStyle || '') : (sty[id] || ''))
+      })
+      current = eff.length && eff.every((s) => s === eff[0]) ? eff[0] : ''
+    } else {
+      current = kind === 'layout' ? (lay[pick.id] || p.suggested_layout) : (sty[pick.id] || p.suggested_style || suggestedStyle)
+    }
+    const changed = batch
+      ? ids_haveAnyOverrideStyle()
+      : (kind === 'layout' ? Boolean(lay[pick.id] && lay[pick.id] !== base) : Boolean(sty[pick.id] && sty[pick.id] !== base))
+    function ids_haveAnyOverrideStyle() {
+      return batchTargetIds().some((id) => Boolean(sty[id]))
+    }
     const items = list.map((n) => h('div', { key: n, className: 'pt-preview-item' + (n === current ? ' sel' : ''), onClick: () => pickOption(n) },
-      n === base ? h('span', { className: 'ai-chip' }, t('aiSuggestion')) : null,
+      (!batch && n === base) ? h('span', { className: 'ai-chip' }, t('aiSuggestion')) : null,
       h('img', { src: '/pictor/preview/' + (kind === 'layout' ? 'layouts' : 'styles') + '/' + encodeURIComponent(n) + '.webp', alt: kind === 'layout' ? layoutLabel(n) : n }),
       h('div', { className: 'nm' }, kind === 'layout' ? layoutLabel(n) : n)))
+    const title = batch ? t('batchStyleLabel') : (kind === 'layout' ? t('chooseLayout') : t('chooseStyle'))
+    const batchSub = batch ? h('p', { className: 'pt-meta', style: { margin: '0 0 10px' }, key: 'sub' },
+      t('batchStyleHint') + ' · ' + t('selectCount', { s: selected.length, t: proposals.length })) : null
     return h('div', { className: 'pt-modal-backdrop', onClick: () => setPick(null) },
       h('div', { className: 'pt-modal pt-modal-wide', onClick: (e) => e.stopPropagation() },
         h('div', { className: 'pt-modal-head' },
-          h('h3', { className: 'pt-option-title', style: { margin: 0 } }, kind === 'layout' ? t('chooseLayout') : t('chooseStyle')),
+          h('h3', { className: 'pt-option-title', style: { margin: 0 } }, title),
           h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
             changed ? h('button', { className: 'pt-btn', style: { padding: '6px 12px', fontSize: 13 }, onClick: resetCurrent }, t('resetToAi')) : null,
             h('button', { className: 'pt-modal-close', onClick: () => setPick(null), title: t('close'), 'aria-label': t('close') }, '×'))),
-        h('div', { className: 'pt-modal-body' }, h('div', { className: 'pt-preview-grid' }, items))))
+        h('div', { className: 'pt-modal-body' }, batchSub, h('div', { className: 'pt-preview-grid' }, items))))
   })() : null
 
+  const styleList = (styles && styles.length ? styles : (suggestedStyle ? [suggestedStyle] : []))
+  const batchStyleBtn = styleList.length ? h('button', {
+    className: 'pt-btn', style: { padding: '4px 10px', fontSize: 13 }, disabled: proposals.length === 0,
+    onClick: () => setPick({ id: null, kind: 'style', batch: true }),
+    title: t('batchStyleHint'),
+  }, t('batchStyleLabel')) : null
+
   const actionRow = h('div', { className: 'pt-card-row', style: { marginTop: 18 } },
-    h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+    h('div', { style: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
       h('button', { className: 'pt-btn', onClick: onToggleAll }, allSelected ? t('deselectAll') : t('selectAll')),
+      batchStyleBtn,
       h('span', { className: 'pt-meta' }, t('selectCount', { s: selected.length, t: proposals.length }))),
     hasImageKey === false
       ? h('p', { className: 'pt-warn', style: { margin: 0 } }, t('imgKeyHint'))
