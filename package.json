@@ -46,7 +46,8 @@
     "docs",
     "README.md",
     "LICENSE",
-    "assets"
+    "assets",
+    "NOTICE.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
