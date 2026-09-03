@@ -1,6 +1,6 @@
 # bandung-circuit
 
-Editorial illustration style of the Bandung Circuit column — a muted, paper-printed aesthetic in the lineage of left publishing-house interior pages (Tricontinental, Verso, *New Left Review*). Cream stock, duotone restraint, thin-line hand-drawn icons, and typography-led hierarchy. Reads as the inside of a thoughtful journal, not a marketing poster.
+Editorial illustration style — a muted, paper-printed aesthetic. Cream stock, duotone restraint, thin-line hand-drawn icons, and typography-led hierarchy. Reads as an interior print spread, not a marketing poster.
 
 ## Color Palette
 
@@ -25,10 +25,10 @@ Editorial illustration style of the Bandung Circuit column — a muted, paper-pr
 
 ## Typography
 
-- **Font family: Poppins** — used as the single typeface across the entire composition (headlines, body, labels, captions, numerals). Poppins is a geometric sans with humanist warmth, which suits Bandung Circuit's editorial-but-warm register; do not pair it with a second family.
+- **Font family: Poppins** — used as the single typeface across the entire composition (headlines, body, labels, captions, numerals). Poppins is a geometric sans with humanist warmth, which suits an editorial-but-warm register; do not pair it with a second family.
 - Headlines: Poppins SemiBold or Bold — uppercase or title case acceptable, tracking slightly opened
 - Body text and labels: Poppins Regular or Medium — comfortable reading weight
-- All-caps short labels for block headers (ONE CORE, FOUR PILLARS, etc.) — Poppins Medium/SemiBold, set in cream on solid duotone bar
+- All-caps short labels for block headers — Poppins Medium/SemiBold, set in cream on solid duotone bar
 - Sub-captions and explanatory phrases beneath block titles: Poppins Italic or Light
 - Numerals match the body face (Poppins lining figures) — no oversized statement numerals (this style trusts the layout, not hero stats)
 
@@ -49,13 +49,9 @@ Editorial illustration style of the Bandung Circuit column — a muted, paper-pr
 - Use filled / solid icons (Material-style) — icons are line-art only
 - Introduce a fourth or fifth color — composition must feel like a duotone with a single accent
 - Use glossy or "tech product" iconography — keep icons modest and editorial
-- Use heavy textures, parchment overlays, ink splatter, or cross-hatching (that is `aged-academia`, not Bandung)
+- Use heavy textures, parchment overlays, ink splatter, or cross-hatching (that is `aged-academia`, not this style)
 - Use bold red blocks or full-bleed red panels (that is `tricon-infographic`, the poster sibling — not this)
-- Crowd the canvas — Bandung Circuit pages always breathe
-
-## Best For
-
-Editorial illustrations for left-publishing journal articles, conceptual frameworks, multi-pillar architectures, theoretical model diagrams, methodology overviews, Global South research publications, long-form essay infographics, in-text figures (not standalone posters)
+- Crowd the canvas — these pages always breathe
 
 ## Recommended Pairings
 
@@ -67,9 +63,9 @@ Editorial illustrations for left-publishing journal articles, conceptual framewo
 
 ## Distinction from Sibling Styles
 
-- **vs `tricon-infographic`**: That style is the *cover/poster* voice of the same publisher — bold red on white, authoritative, full-bleed. Bandung Circuit is the *interior/essay* voice — cream stock, duotone, quiet.
-- **vs `aged-academia`**: That style is sepia parchment with cross-hatched scientific illustration. Bandung Circuit is contemporary editorial print, not historical specimen plate.
-- **vs `mckinsey-report`**: That style is white-background institutional consulting with serif/sans dual typography. Bandung Circuit is warm-paper publishing-house aesthetic with single sans family and political-intellectual register.
+- **vs `tricon-infographic`**: That style is a poster voice — bold red on white, authoritative, full-bleed. `bandung-circuit` is an interior/essay voice — cream stock, duotone, quiet.
+- **vs `aged-academia`**: That style is sepia parchment with cross-hatched scientific illustration. `bandung-circuit` is contemporary editorial print, not historical specimen plate.
+- **vs `mckinsey-report`**: That style is white-background institutional consulting with serif/sans dual typography. `bandung-circuit` is a warm-paper aesthetic with a single sans family.
 
 ## Register
 
@@ -77,6 +73,3 @@ Editorial illustrations for left-publishing journal articles, conceptual framewo
 - abstract-representational: slightly abstract
 - bright-dark: bright (warm-bright, not white-bright)
 - digital-handcrafted: leans handcrafted (digital execution with hand-drawn iconography)
-- cultural-anchor: left publishing-house interior page design (Tricontinental, Verso, *New Left Review*, *Monthly Review*) — editorial register of the international left intellectual tradition
-- best-for: in-text editorial illustrations for journal articles, conceptual diagrams in long-form essays, Global South research publications
-- avoid-for: marketing posters, product UI, children's content, entertainment, corporate consulting decks, social-media graphics requiring stopping power

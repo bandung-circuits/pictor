@@ -173,9 +173,11 @@ export class DashScopeProvider implements ImageProvider {
     const base = this.cfg.baseUrl || 'https://dashscope.aliyuncs.com/api/v1'
     const size = DASHSCOPE_SIZE_MAP[aspectRatio] || '1024*1024'
     const url = base.replace(/\/$/, '') + '/services/aigc/multimodal-generation/generation'
-    // 默认开启 prompt 改写（prompt_extend）与关水印（qwen-image 长 prompt 文字
-    // 渲染的关键，实测 2026-08-29）；用户 extra 可覆盖。
-    const parameters: any = { size, prompt_extend: true, watermark: false }
+    // 仅默认 size 与关水印；prompt_extend（提示词智能改写）等改变内容的参数交给
+    // 用户在设置页 extra 里按需添加。2026-09-03：实测 prompt_expand 会稀释内容
+    // 密集的长 prompt（风格保留、具体内容被改写丢失），不再默认开启。deepMerge
+    // 仍允许 extra 覆盖任意参数。
+    const parameters: any = { size, watermark: false }
     const body: any = {
       model,
       input: { messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }] },
