@@ -1,6 +1,6 @@
 {
   "name": "dsh-pictor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pictor：文档转信息图工作台。每项目一个连贯 dsh 会话，GUI 为 shell.overlay 工作台（左栏项目、右栏三步：提取/方案/渲染），行为全部交给 DSH 智能运行时。",
   "type": "module",
   "repository": {
