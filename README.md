@@ -47,9 +47,14 @@ Replace `<profile>` with the target profile name (e.g. `desktop`, `web`) and sta
 ```bash
 npm run build                # esbuild build of host + bundled client
 npm run verify               # L1 unit + L2 host integration (mock ctx, 15 items)
-npm run verify:integration   # L3 transport smoke against a real dsh web
+npm run verify:integration   # L3 transport smoke against a real dsh web (hermetic temp home)
+npm run test:pack            # package integrity: tarball carries lib/, agents/, references/, assets/
+npm run test:install         # L5: README install path (dsh plugin add) → real dsh web boot
 npm run test:e2e             # L4a browser e2e (fixture data, deterministic)
+npm run hooks:install        # one-time: enable the pre-push hook (git config core.hooksPath .githooks)
 ```
+
+The pre-push hook runs `npm run verify` + `npm run test:install` before every push; all smoke layers are hermetic (temp `DSH_HOME`, never the live `~/.dsh`).
 
 Test-layer definitions and rationale: [docs/DESIGN.zh.md](docs/DESIGN.zh.md) §7.
 

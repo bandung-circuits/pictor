@@ -47,9 +47,14 @@ dsh plugin --profile <profile> add dsh-pictor
 ```bash
 npm run build         # esbuild 构建 host + 拼接 client
 npm run verify        # L1 单元 + L2 host 集成（mock ctx，15 项）
-npm run verify:integration   # L3 transport 冒烟（真实 dsh web）
+npm run verify:integration   # L3 transport 冒烟（真实 dsh web，封闭临时 DSH_HOME）
+npm run test:pack     # 打包完整性：tarball 必带 lib/、agents/、references/、assets/
+npm run test:install  # L5：README 安装路径（dsh plugin add）→ 真实 dsh web 启动
 npm run test:e2e      # L4a 浏览器 e2e（fixture 数据，确定性）
+npm run hooks:install # 一次性启用 pre-push 钩子（git config core.hooksPath .githooks）
 ```
+
+pre-push 钩子在每次 push 前依次跑 `npm run verify` 与 `npm run test:install`；所有冒烟层都是封闭式（临时 `DSH_HOME`，不碰真实 `~/.dsh`）。
 
 测试分层的定义与理由见 [docs/DESIGN.zh.md](docs/DESIGN.zh.md) 第 7 节。
 

@@ -8,56 +8,41 @@
 # connection.rpc.handle registration actually lands on the web server and the
 # response envelope (+ error object protocol) is honored end to end.
 #
+# Hermetic: DSH_HOME/PICTOR_HOME point at a temp dir (never the real ~/.dsh,
+# so a running DSH Desktop is untouched) and everything is removed on exit.
+#
 # Usage: bash scripts/transport-smoke.sh   (or: npm run verify:integration)
-# NOTE: use ${VAR} everywhere - macOS bash 3.2 mangles $VAR immediately
-# followed by a multibyte (CJK) character.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
-PROFILE_DIR="${DSH_HOME}/profiles/web"
-PKG="${PROFILE_DIR}/package.json"
 PORT="${PIC_SMOKE_PORT:-43121}"
 BASE="http://127.0.0.1:${PORT}"
-LOG="$(mktemp -d)/dsh-web.log"
+TMP="$(mktemp -d)"
+LOG="${TMP}/dsh.log"
 SERVER_PID=""
 
 cleanup() {
   if [ -n "${SERVER_PID}" ]; then kill "${SERVER_PID}" >/dev/null 2>&1 || true; fi
+  rm -rf "${TMP}"
 }
 trap cleanup EXIT
 
-echo "== pictor transport smoke (web profile on :${PORT})"
+export DSH_HOME="${TMP}/dsh_home"
+export PICTOR_HOME="${TMP}/pictor_home"
+mkdir -p "${PICTOR_HOME}"
 
-# 1) Mount dsh-pictor into the web profile, idempotently.
-if [ ! -f "${PKG}" ]; then
-  echo "FAIL: web profile missing (${PKG}); create it via 'dsh --profile web' once"
-  exit 1
-fi
-python3 - "${PKG}" <<PYEOF
-import json, sys
-p = sys.argv[1]
-d = json.load(open(p))
-d.setdefault("dependencies", {})["dsh-pictor"] = "link:${ROOT}"
-b = d.setdefault("dsh", {}).setdefault("profile", {}).setdefault("bundles", [])
-if "dsh-pictor" not in b:
-    b.append("dsh-pictor")
-    print("-- appended dsh-pictor to bundles:", b)
-json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
-open(p, "a").write("\n")
-PYEOF
-mkdir -p "${PROFILE_DIR}/node_modules"
-LINK="${PROFILE_DIR}/node_modules/dsh-pictor"
-if [ ! -L "${LINK}" ]; then
-  ln -s "${ROOT}" "${LINK}"
-  echo "-- linked ${LINK} -> ${ROOT}"
-fi
+echo "== pictor transport smoke (web profile on :${PORT}, temp home ${TMP})"
 
-# 2) Boot the web host (background) and wait for the /api carrier.
+# 1) Mount dsh-pictor into a fresh web profile inside the temp DSH_HOME.
+dsh --profile web --help >/dev/null 2>&1
+dsh plugin --profile web add "$ROOT" >/dev/null 2>&1 \
+  || { echo "FAIL: dsh plugin add $ROOT"; exit 1; }
+
+# 2) Boot the web host (background) and wait for the web frontend.
 dsh --profile web --no-open --port "${PORT}" >"${LOG}" 2>&1 &
 SERVER_PID=$!
 READY=0
-for _ in $(seq 1 40); do
-  if curl -s -o /dev/null "http://127.0.0.1:${PORT}/api/session.list" --max-time 2; then READY=1; break; fi
+for _ in $(seq 1 60); do
+  if curl -s -o /dev/null "${BASE}/" --max-time 2; then READY=1; break; fi
   sleep 1
 done
 if [ ${READY} -ne 1 ]; then
@@ -90,8 +75,8 @@ if ! grep -q '"ok":true' <<<"${RESP2}" || ! grep -q 'dataRoot' <<<"${RESP2}"; th
 fi
 
 # 4b) Asset leg: the empty-state placeholder must be served by the host route.
-RESP3="$(curl -s -o /tmp/pictor-asst.png -w '%{http_code}' "${BASE}/pictor/asset/empty-state.png" --max-time 10)"
-ASZ="$(stat -f%z /tmp/pictor-asst.png 2>/dev/null || echo 0)"
+RESP3="$(curl -s -o "${TMP}/pictor-asst.png" -w '%{http_code}' "${BASE}/pictor/asset/empty-state.png" --max-time 10)"
+ASZ="$(stat -f%z "${TMP}/pictor-asst.png" 2>/dev/null || echo 0)"
 echo "-- asset empty-state.png => HTTP ${RESP3} (${ASZ} bytes)"
 if [ "${RESP3}" != "200" ] || [ "${ASZ}" -lt 1000 ]; then
   echo "FAIL: expected the placeholder image to be served over HTTP"

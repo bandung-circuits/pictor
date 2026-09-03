@@ -53,6 +53,9 @@
     "build": "node scripts/build.mjs",
     "verify": "node scripts/build.mjs && node verify.mjs",
     "verify:integration": "bash scripts/transport-smoke.sh",
+    "test:pack": "bash scripts/package-integrity.sh",
+    "test:install": "bash scripts/install-smoke.sh",
+    "hooks:install": "git config core.hooksPath .githooks",
     "test:e2e": "playwright test --config e2e/playwright.config.ts --project chromium",
     "verify:live": "playwright test --config e2e/playwright.config.ts --project live",
     "prepare": "node scripts/build.mjs"
