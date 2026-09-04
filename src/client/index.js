@@ -12,7 +12,7 @@
 const React = require('react')
 const h = React.createElement
 
-const inject = ['slots', 'connection', 'workspaces', 'sessions']
+const inject = ['slots', 'connection', 'workspaces', 'sessions', 'uiWorkspace']
 const RPC = '/pictor'
 
 const STYLE = `
