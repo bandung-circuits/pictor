@@ -541,16 +541,14 @@ async function driveProjectSession(ctx, prompt) {
   const ws = ctx.workspaces || (ctx.get && ctx.get('workspaces'))
   const sessionsSvc = ctx.sessions || (ctx.get && ctx.get('sessions'))
   const connect = sessionConnectFn(ctx, ws)
-  if (!connect) {
+  if (!connect || !(sessionsSvc && typeof sessionsSvc.binding === 'function')) {
     let uiWs = null
     try { uiWs = ctx.uiWorkspace || ((ctx.get && ctx.get('uiWorkspace')) || null) } catch { /* ignore */ }
-    console.warn('[pictor] session services unavailable', {
-      workspaces: !!ws,
-      sessions: !!sessionsSvc && typeof sessionsSvc.binding === 'function',
-      uiWorkspace: !!uiWs,
-      connectWorkspace: !!connect,
-    })
-    throw new Error('会话服务不可用（workspaces）')
+    const diag = { ws: !!ws, ses: !!sessionsSvc && typeof sessionsSvc.binding === 'function', uiws: !!uiWs, conn: !!connect }
+    console.warn('[pictor] session services unavailable', diag)
+    try { window.__pictor_diag = diag } catch { /* ignore */ }
+    try { pictorDiag(ctx, 'drive:fail') } catch { /* ignore */ }
+    throw new Error(`会话服务不可用（workspaces） [ws:${diag.ws},ses:${diag.ses},uiws:${diag.uiws},conn:${diag.conn}]`)
   }
   const wid = await pictorWorkspace(ctx)
   let sessionId
@@ -560,6 +558,7 @@ async function driveProjectSession(ctx, prompt) {
   const sess = bound && bound.session
   if (!sess || typeof sess.prompt !== 'function') throw new Error('会话无 prompt 通道')
   await sess.prompt([{ type: 'text', text: String(prompt || '') }], 'queue')
+  try { pictorDiag(ctx, 'drive:ok') } catch { /* ignore */ }
   return sessionId
 }
 
@@ -1701,7 +1700,30 @@ function selectedLabel(ids) {
   return ids.join('、')
 }
 
+// 最佳努力诊断：上报此 ctx 上工作区/会话服务的暴露情况（DSH Desktop 0.7.2
+// 调整了客户端 API），host 落盘 ~/.pictor/diag.jsonl，无需 DevTools 即可排查。
+function pictorDiag(ctx, phase) {
+  let ws = null, ses = null, ui = null
+  try { ws = ctx && (ctx.workspaces || (ctx.get && ctx.get('workspaces'))) } catch { /* ignore */ }
+  try { ses = ctx && (ctx.sessions || (ctx.get && ctx.get('sessions'))) } catch { /* ignore */ }
+  try { ui = ctx && (ctx.uiWorkspace || (ctx.get && ctx.get('uiWorkspace'))) } catch { /* ignore */ }
+  const body = {
+    phase,
+    ws: !!ws, ses: !!ses, ui: !!ui,
+    wsMethods: ws ? Object.keys(ws).slice(0, 40) : null,
+    sesMethods: ses ? Object.keys(ses).slice(0, 40) : null,
+    uiMethods: ui ? Object.keys(ui).slice(0, 40) : null,
+    connectWs: !!(ws && typeof ws.connectWorkspace === 'function'),
+    connectUi: !!(ui && typeof ui.connectWorkspace === 'function'),
+    bind: !!(ses && typeof ses.binding === 'function'),
+    href: typeof location !== 'undefined' ? location.href.slice(0, 80) : '',
+  }
+  try { fetch('/pictor/diag', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) } catch { /* ignore */ }
+  console.warn('[pictor] diag', body)
+}
+
 function apply(ctx) {
+  try { pictorDiag(ctx, 'apply') } catch { /* ignore */ }
   console.info('[dsh-pictor] apply 被调用', { hasSlots: Boolean(ctx && ctx.slots) })
   if (typeof document !== 'undefined') {
     const styleId = 'dsh-pictor-style'

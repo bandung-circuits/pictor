@@ -840,6 +840,21 @@ export function apply(ctx: any, config: any = {}) {
         res.writeHead(404); res.end('not found')
       }
     } })
+    // 客户端诊断落盘：工作台 client 报告其 ctx 上服务暴露情况
+    // （DSH Desktop 0.7.2 调整了客户端 API），写入 ~/.pictor/diag.jsonl。
+    wsA.register({ kind: 'exact', path: '/pictor/diag', handler: (req: any, res: any) => {
+      let body = ''
+      try {
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            mkdirSync(base, { recursive: true })
+            appendFileSync(join(base, 'diag.jsonl'), JSON.stringify({ t: Date.now(), ...JSON.parse(body || '{}') }) + '\n')
+          } catch { /* ignore */ }
+          res.writeHead(204); res.end()
+        })
+      } catch { res.writeHead(204); res.end() }
+    } })
   }
 
   return { dataRoot: base }
