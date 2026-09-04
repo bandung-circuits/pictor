@@ -83,4 +83,17 @@ if [ "${RESP3}" != "200" ] || [ "${ASZ}" -lt 1000 ]; then
   exit 1
 fi
 
+# 4c) Project result image: a real project output served over HTTP (newer DSH
+# Desktop WebViews may block data: URLs — results ride on this route now).
+PROJ="${PICTOR_HOME}/2026-09-04-smoke"
+mkdir -p "${PROJ}/output"
+printf 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d > "${PROJ}/output/p1.png"
+RESP4="$(curl -s -o "${TMP}/pictor-proj.png" -w '%{http_code}' "${BASE}/pictor/asset/project/2026-09-04-smoke/p1.png" --max-time 10)"
+P4Z="$(stat -f%z "${TMP}/pictor-proj.png" 2>/dev/null || echo 0)"
+echo "-- project image route => HTTP ${RESP4} (${P4Z} bytes)"
+if [ "${RESP4}" != "200" ] || [ "${P4Z}" -lt 50 ]; then
+  echo "FAIL: expected a project result PNG to be served over HTTP"
+  exit 1
+fi
+
 echo "PASS transport smoke: /pictor channel registered and serving on real HTTP (${BASE})"

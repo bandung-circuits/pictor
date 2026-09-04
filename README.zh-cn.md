@@ -20,6 +20,10 @@ dsh plugin --profile <profile> add dsh-pictor
 
 > 帮我把 Pictor 插件装上，从 npm 包 dsh-pictor 装到当前 profile，需要的话重启，装好告诉我左下角有没有 Pictor 入口。
 
+## 适配的 DSH 版本
+
+Pictor 以 **DSH Desktop 0.7.2**（内置 Harness **0.1.2-alpha.1**）为适配与测试基准。DeepSeek Harness 的客户端 API（工作区/会话服务）演进很快，本月两个版本之间可能就面目全非，所以本插件只跟住一个 harness 世代。其他版本——无论更旧更新——可能能跑、也可能无预告地坏掉，都不在我们的支持范围内。DSH 升级后插件不工作，请先回到上面这个版本，而不是去排查版本差异。
+
 ## 使用
 
 1. 打开工作台，点「新建项目」：上传文件（md/txt/docx/pdf/图片）或粘贴内容（从 Word/网页粘贴，格式保留，落盘为消毒 HTML）。

@@ -20,6 +20,10 @@ Replace `<profile>` with the target profile name (e.g. `desktop`, `web`) and sta
 
 > Install the Pictor plugin from the npm package `dsh-pictor` into the current profile, restart if needed, and confirm when a Pictor button appears at the bottom left.
 
+## Supported dsh version
+
+Pictor is built and tested against **DSH Desktop 0.7.2** (bundled Harness **0.1.2-alpha.1**). The DeepSeek Harness client API moves quickly — the workspace/session services it exposes keep changing — so this plugin intentionally tracks one harness generation. Other versions (older or newer) may work or may break without notice, and are outside our support scope. If something stops working after a DSH update, update dsh to the version above rather than debugging the mismatch.
+
 ## Usage
 
 1. Open the workbench via the **Pictor** footer button and click **New project**: upload a file (`md` / `txt` / `docx` / `pdf` / image) or paste content (from Word or the web; formatting is kept, stored as sanitised HTML).

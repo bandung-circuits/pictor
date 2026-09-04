@@ -818,6 +818,28 @@ export function apply(ctx: any, config: any = {}) {
         } })
       }
     }
+    // 项目结果图：HTTP 直出。此前经 RPC 回 data URL 渲染，新版 DSH Desktop
+    // WebView 可能拦 data: 图片（同 pomasa meme 问题）；改同源 GET。项目 id
+    // 与文件名双重防穿越（拒绝 '/' 与 '..'，文件须为 .png），根路径防枚举。
+    const PREFIX = '/pictor/asset/project'
+    wsA.register({ kind: 'prefix', path: PREFIX, handler: (req: any, res: any) => {
+      try {
+        const pathname = new URL(req.url || '/', 'http://x').pathname
+        const rest = pathname.slice(PREFIX.length + 1)
+        const slash = rest.indexOf('/')
+        if (slash <= 0) { res.writeHead(404); res.end('not found'); return }
+        const id = rest.slice(0, slash)
+        const file = rest.slice(slash + 1)
+        if (id.includes('..') || /[\\/]/.test(id) || !/^[0-9a-zA-Z_.-]+$/.test(file) || !file.endsWith('.png')) {
+          res.writeHead(400); res.end('bad request'); return
+        }
+        const buf = readFileSync(join(projectDir(id), 'output', file))
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=300' })
+        res.end(buf)
+      } catch {
+        res.writeHead(404); res.end('not found')
+      }
+    } })
   }
 
   return { dataRoot: base }
