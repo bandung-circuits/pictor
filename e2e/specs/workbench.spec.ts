@@ -11,8 +11,7 @@ const click = async (page: Page, selector: string, timeout?: number) => {
 }
 
 async function openWorkbench(page: Page) {
-  await click(page, '.dk-footer-action', 60000)
-  await click(page, '.dk-app:has-text("Pictor")', 30000)
+  await click(page, '[data-dock-app="dsh-pictor"]', 60000)
   await page.waitForSelector('.pt-workbench', { timeout: 30000 })
 }
 
