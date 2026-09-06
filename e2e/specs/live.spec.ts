@@ -19,7 +19,7 @@ test('live：新建项目 → 会话真实提取出候选结构', async ({ page 
   await page.waitForSelector('[data-dock-app="dsh-pictor"]')
   await page.$eval('[data-dock-app="dsh-pictor"]', (el) => el.click())
   await page.waitForSelector('.pt-workbench')
-  await page.getByRole('button', { name: '新建项目' }).click()
+  await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('button', { name: '粘贴内容' }).click()
   await page.locator('.pt-rich').fill(
     '数字主权指数是一套按国家维度评估数据治理、基础设施与算法自主权的框架。' +
