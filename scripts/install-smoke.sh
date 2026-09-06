@@ -1,21 +1,15 @@
 #!/usr/bin/env bash
-# L5 install smoke: the README install path (`dsh plugin add dsh-pictor`),
-# hermetic and repeatable.
+# L5 install smoke: README 安装路径（`dsh plugin add dsh-pictor`），封闭可重复。
 #
-# Default (CI): pack the CURRENT repo into a tarball — `files` whitelist
-# included — install it into a fresh temp profile via `dsh plugin add`, boot a
-# real dsh web, and assert the /pictor RPC channel, the client bundle and the
-# placeholder asset are served. Tests the code being pushed, not an older
-# published build.
-#
-# Registry mode: POMASA_INSTALL_SPEC=dsh-pictor (or @<version>) installs from
-# npm instead — the exact README flow, for release verification after publish.
-#
-# Never touches a real profile: DSH_HOME/PICTOR_HOME point at a temp dir that
-# is removed on exit. dsh/pnpm must be on PATH (exit 2 = "skipped", for hooks).
+# pictor 依赖 dsh-app-dock（成员应用入伙方式）：本地目录模式下先
+# `dsh plugin add <dock-root>` 再装 pictor（目录安装时 pnpm 按
+# package.json 的 `link:`/`^0.1.2` 依赖解析）。发布后
+# PIC_INSTALL_SPEC=dsh-pictor 走 npm registry。tarball 完整性由
+# package-integrity.sh 单独保证。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DOCK_ROOT="$(cd "$ROOT" && pwd)/../dsh-app-dock"
 PORT="${PIC_INSTALL_PORT:-43995}"
 BASE="/tmp/pictor-install-smoke-$$"
 
@@ -31,40 +25,22 @@ export DSH_HOME="$BASE/dsh_home"
 export PICTOR_HOME="$BASE/pictor_home"
 mkdir -p "$PICTOR_HOME"
 
-# --- pick install source ---------------------------------------------------
-SPEC="${POMASA_INSTALL_SPEC:-}"
+SPEC="${PIC_INSTALL_SPEC:-}"
 if [ -n "$SPEC" ]; then
-  PKG="$SPEC"
   MODE="registry:${SPEC}"
 else
-  DEST="$BASE/pkg"
-  mkdir -p "$DEST"
-  (cd "$ROOT" && npm pack --pack-destination "$DEST" >/dev/null)
-  PKG_FILE="$(ls "$DEST"/*.tgz | head -1)"
-  [ -n "$PKG_FILE" ] || { echo "FAIL: no tarball produced" >&2; exit 1; }
-  # Package integrity: every path the host needs at boot must be in the tarball.
-  FAIL=0
-  for need in \
-    package/lib/index.js \
-    package/lib/client.js \
-    package/cordis.patch.yml \
-    package/agents/10.orchestrator.md \
-    package/references/domain/visual-principles.md \
-    package/assets/empty-state.png; do
-    if ! tar tzf "$PKG_FILE" | grep -qFx "$need"; then
-      echo "FAIL: tarball missing $need" >&2
-      FAIL=1
-    fi
-  done
-  [ "$FAIL" = "0" ] || { echo "tarball: $(basename "$PKG_FILE")" >&2; exit 1; }
-  PKG="$PKG_FILE"
-  MODE="local-tarball:$(basename "$PKG_FILE")"
+  [ -d "$DOCK_ROOT" ] || { echo "FAIL: dock 仓库不存在 $DOCK_ROOT" >&2; exit 1; }
+  MODE="local-dirs(dock+pictor)"
 fi
 
 # --- the README flow -------------------------------------------------------
 dsh --profile web --help >/dev/null 2>&1
-dsh plugin --profile web add "$PKG" >/dev/null 2>&1 \
-  || { echo "FAIL: dsh plugin add $PKG" >&2; exit 1; }
+if [ -n "$SPEC" ]; then
+  dsh plugin --profile web add "$SPEC" >/dev/null 2>&1 || { echo "FAIL: dsh plugin add $SPEC" >&2; exit 1; }
+else
+  dsh plugin --profile web add "$DOCK_ROOT" >/dev/null 2>&1 || { echo "FAIL: dsh plugin add $DOCK_ROOT" >&2; exit 1; }
+  dsh plugin --profile web add "$ROOT" >/dev/null 2>&1 || { echo "FAIL: dsh plugin add $ROOT" >&2; exit 1; }
+fi
 
 PLUGIN_ROOT="$DSH_HOME/profiles/web/node_modules/dsh-pictor"
 for f in lib/index.js lib/client.js cordis.patch.yml package.json; do
@@ -72,6 +48,8 @@ for f in lib/index.js lib/client.js cordis.patch.yml package.json; do
 done
 grep -q 'dsh-pictor' "$DSH_HOME/profiles/web/package.json" \
   || { echo "FAIL: profile manifest does not list dsh-pictor" >&2; exit 1; }
+grep -q 'dsh-app-dock' "$DSH_HOME/profiles/web/package.json" \
+  || { echo "FAIL: profile manifest does not list dsh-app-dock" >&2; exit 1; }
 
 # --- boot and assert -------------------------------------------------------
 dsh --profile web --no-open --port "$PORT" >"$BASE/dsh.log" 2>&1 &
@@ -103,12 +81,10 @@ RESP2="$(curl -s -X POST "http://127.0.0.1:${PORT}/pictor/config.get" \
 echo "$RESP2" | grep -q '"ok":true' && echo "$RESP2" | grep -q 'dataRoot' \
   || { echo "FAIL: config.get should return dataRoot — $RESP2" >&2; exit 1; }
 
-# Client bundle served.
+# Client bundles served.
 curl -sf "http://127.0.0.1:${PORT}/plugins/dsh-pictor/client.js" -o /dev/null \
-  || { echo "FAIL: client bundle not served" >&2; exit 1; }
-
-# Placeholder asset route.
-curl -sf "http://127.0.0.1:${PORT}/pictor/asset/empty-state.png" -o /dev/null \
-  || { echo "FAIL: empty-state.png not served" >&2; exit 1; }
+  || { echo "FAIL: pictor client bundle not served" >&2; exit 1; }
+curl -sf "http://127.0.0.1:${PORT}/plugins/dsh-app-dock/client.js" -o /dev/null \
+  || { echo "FAIL: dock client bundle not served" >&2; exit 1; }
 
 echo "install smoke OK (${MODE}, port ${PORT}, /pictor reachable)"
