@@ -3,6 +3,19 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
+// 程序化 click：先等元素出现再 $eval 触发（$eval 不自动等待；locator.click 则被
+// dsh web 空态引导层（_mask/_root）的命中测试压住）。断言仍走常规 locator。
+const click = async (page: Page, selector: string, timeout?: number) => {
+  await page.waitForSelector(selector, { timeout: timeout || 30000 })
+  await page.$eval(selector, (el: HTMLElement) => el.click())
+}
+
+async function openWorkbench(page: Page) {
+  await click(page, '.dk-footer-action', 60000)
+  await click(page, '.dk-app:has-text("Pictor")', 30000)
+  await page.waitForSelector('.pt-workbench', { timeout: 30000 })
+}
+
 // dsh 冷环境可能弹两个顶层模态（测试提示、API key）；有就关掉。
 async function dismissModals(page: Page) {
   for (const label of ['Continue', 'Configure later', '试试', '跳过']) {
@@ -19,16 +32,14 @@ test.beforeEach(async ({ page }) => {
   await dismissModals(page)
 })
 
-test('footer 按钮打开工作台，左栏列出 fixture 项目', async ({ page }) => {
-  const footer = page.getByRole('button', { name: 'Pictor' })
-  await expect(footer).toBeVisible({ timeout: 20000 })
-  await footer.click()
+test('坞入口打开工作台，左栏列出 fixture 项目', async ({ page }) => {
+  await openWorkbench(page)
   // 工作台左栏出现项目列表
   await expect(page.getByText('数字主权评估报告')).toBeVisible({ timeout: 15000 })
 })
 
 test('进入项目：信息条、阶段条、渲染步骤出图', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.getByText('数字主权评估报告').click()
   // 信息条里的"已出图"徽章（左栏导航里也有同名状态文案，须限定作用域）
   await expect(page.locator('.pt-infobar .pt-badge', { hasText: '已出图' })).toBeVisible({ timeout: 10000 })
@@ -42,7 +53,7 @@ test('进入项目：信息条、阶段条、渲染步骤出图', async ({ page 
 })
 
 test('点回提取/方案步骤可回看产物（文件事实驱动）', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.getByText('数字主权评估报告').click()
   await page.getByRole('button', { name: /提取结构/ }).click()
   await expect(page.getByText('数字主权指数结构')).toBeVisible()
@@ -53,7 +64,7 @@ test('点回提取/方案步骤可回看产物（文件事实驱动）', async (
 })
 
 test('设置页展示画图模型配置面', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.getByText('设置画图模型').click()
   await expect(page.getByText('生图 provider')).toBeVisible()
   await expect(page.locator('.pt-input select, select.pt-input').first()).toBeVisible()
@@ -61,7 +72,7 @@ test('设置页展示画图模型配置面', async ({ page }) => {
 })
 
 test('改名：信息条内联编辑', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.getByText('数字主权评估报告').click()
   await page.getByRole('button', { name: '改名' }).click()
   const input = page.locator('.pt-rename-input')
@@ -71,7 +82,7 @@ test('改名：信息条内联编辑', async ({ page }) => {
 })
 
 test('结构卡行内编辑并落盘', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.locator('.pt-nav-item .name').first().click()
   await page.getByRole('button', { name: /提取结构/ }).click()
   await page.locator('.pt-card button', { hasText: '编辑' }).first().click()
@@ -82,7 +93,7 @@ test('结构卡行内编辑并落盘', async ({ page }) => {
 })
 
 test('结构详情弹窗', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.locator('.pt-nav-item .name').first().click()
   await page.getByRole('button', { name: /提取结构/ }).click()
   await expect(page.locator('.pt-card button', { hasText: '详情' }).first()).toBeVisible()
@@ -93,7 +104,7 @@ test('结构详情弹窗', async ({ page }) => {
 })
 
 test('结果图点击弹大图', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.locator('.pt-nav-item .name').first().click()
   await expect(page.locator('.pt-img-card img')).toBeVisible({ timeout: 10000 })
   await page.locator('.pt-img-card img').first().click()
@@ -104,21 +115,21 @@ test('结果图点击弹大图', async ({ page }) => {
 })
 
 test('点外收起面板 + 重开恢复关闭前界面', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.locator('.pt-nav-item .name').first().click()
   await expect(page.locator('.pt-infobar h1').first()).toBeVisible()
   const title1 = await page.locator('.pt-infobar h1').first().textContent()
   // 点 dsh 侧栏区域（面板外）→ 自动收起
   await page.mouse.click(100, 200)
   await expect(page.locator('.pt-shell-panel')).not.toBeVisible()
-  // 再点 Pictor → 恢复关闭前的项目详情（不是首页）
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  // 再经坞打开 → 恢复关闭前的项目详情（不是首页）
+  await openWorkbench(page)
   await expect(page.locator('.pt-infobar h1').first()).toBeVisible()
   await expect(page.locator('.pt-infobar h1').first()).toHaveText(title1 || '')
 })
 
 test('方案布局选择弹窗与重置', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   await page.locator('.pt-nav-item .name').first().click()
   await page.getByRole('button', { name: /方案设计/ }).click()
   const layoutBtn = page.getByRole('button', { name: /布局:/ }).first()
@@ -140,27 +151,29 @@ test('方案布局选择弹窗与重置', async ({ page }) => {
 })
 
 test('方案覆盖刷新后保留', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
-  await page.locator('.pt-nav-item .name').first().click()
-  await page.getByRole('button', { name: /方案设计/ }).click()
-  const layoutBtn = page.getByRole('button', { name: /布局:/ }).first()
-  await layoutBtn.click()
-  await page.locator('.pt-modal .pt-preview-item').nth(2).click()
+  // dsh web 空态引导层（_mask/_root）会时隐时现地压住面板内的指针点击，本用例
+  // 一律程序化 click（$eval），与 auctor 的 e2e 同法。
+  await openWorkbench(page)
+  await click(page, '.pt-nav-item .name')
+  await click(page, 'button:has-text("方案设计")')
+  await click(page, 'button:has-text("布局:")')
+  await page.waitForSelector('.pt-modal .pt-preview-item')
+  await page.$$eval('.pt-modal .pt-preview-item', (els) => (els[2] as HTMLElement).click())
   await expect(page.getByRole('button', { name: /·已改/ }).first()).toBeVisible()
   await page.waitForTimeout(800) // 等防抖落盘
   await page.reload()
   await page.waitForTimeout(4000)
-  await page.locator('.pt-footer-action').click()
-  await page.locator('.pt-nav-item .name').first().click()
-  await page.getByRole('button', { name: /方案设计/ }).click()
+  await openWorkbench(page)
+  await click(page, '.pt-nav-item .name')
+  await click(page, 'button:has-text("方案设计")')
   await expect(page.getByRole('button', { name: /·已改/ }).first()).toBeVisible()
   // 复位，避免影响后续用例
-  await page.getByRole('button', { name: /布局:/ }).first().click()
-  await page.getByRole('button', { name: '回到 AI 推荐' }).click()
+  await click(page, 'button:has-text("布局:")')
+  await click(page, 'button:has-text("回到 AI 推荐")')
 })
 
 test('语言切换与每卡宽高比', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pictor' }).click()
+  await openWorkbench(page)
   // 取左栏第一个项目（改名用例会改掉标题，不按名字定位）
   await page.locator('.pt-nav-item .name').first().click()
   await page.getByRole('button', { name: /方案设计/ }).click()

@@ -50,6 +50,8 @@ seedFixture()
 // Hermetic plugin mount: fresh profile in a temp DSH_HOME, plugin from this
 // checkout — no dependency on a profile state left behind by other scripts.
 execFileSync('dsh', ['--profile', 'web', '--help'], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
+// 坞先装（bundles 先于 pictor 加载，register 发生在 pictor apply 之前，pictor 才入坞）
+execFileSync('dsh', ['plugin', '--profile', 'web', 'add', join(ROOT, '..', 'dsh-app-dock')], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
 execFileSync('dsh', ['plugin', '--profile', 'web', 'add', ROOT], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
 console.log('fixture home:', HOME)
 

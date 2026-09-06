@@ -1747,12 +1747,12 @@ function apply(ctx) {
   panel.close = () => { if (panel.open) { panel.open = false; panel.emit() } }
   panel.subscribe = (fn) => { panel.subs.add(fn); return () => { panel.subs.delete(fn) } }
   // 点选 dsh 左侧会话（或面板外任意处）自动收起工作台：
-  // 只排除面板本身与 Pictor 启动按钮；侧栏会话此刻在面板左侧始终可点。
+  // 只排除面板本身；侧栏会话此刻在面板左侧始终可点（入口已交给应用坞）。
   if (typeof document !== 'undefined') {
     document.addEventListener('mousedown', (e) => {
       if (!panel.open) return
       const t = e.target
-      if (t && typeof t.closest === 'function' && (t.closest('.pt-shell-panel') || t.closest('.pt-footer-action'))) return
+      if (t && typeof t.closest === 'function' && t.closest('.pt-shell-panel')) return
       panel.close()
     })
   }
@@ -1794,24 +1794,16 @@ function apply(ctx) {
         h(Workbench, { ctx, key: 'shell' })))
   }
 
-  function FooterAction() {
-    useLang() // footer 文案随语言刷新
-    const open = usePanelOpen()
-    return h('div', {
-      className: 'pt-footer-action' + (open ? ' on' : ''),
-      role: 'button',
-      tabIndex: 0,
-      onClick: () => panel.toggle(),
-      onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panel.toggle() } },
-      title: open ? t('close') : t('open'),
-      'aria-expanded': open ? 'true' : 'false',
-    }, h('span', { className: 'glyph' }, '◈'), 'Pictor')
+  // 入坞：dsh-app-dock 是依赖，入口交给坞（含 ready 延迟注册），自占 footer 槽移除。
+  const registerWithDock = () => {
+    if (typeof window === 'undefined' || !window.__dshAppDock__) return
+    window.__dshAppDock__.register({ id: 'dsh-pictor', label: 'Pictor', icon: '◈', order: 20, onToggle: () => panel.toggle() })
   }
+  if (typeof window !== 'undefined' && !window.__dshAppDock__) {
+    window.addEventListener('dsh-app-dock:ready', registerWithDock, { once: true })
+  }
+  registerWithDock()
 
-  slots.inject('sidebar.footer.action', () => slots.register(
-    { name: 'sidebar.footer.action', id: 'dsh-pictor', order: 20, label: 'Pictor' },
-    () => h(FooterAction, null),
-  ))
   slots.inject('shell.overlay', () => slots.register(
     { name: 'shell.overlay', id: 'dsh-pictor', order: 10, label: 'Pictor' },
     () => h(WorkbenchPanel, null),
