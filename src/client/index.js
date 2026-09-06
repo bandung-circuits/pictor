@@ -74,13 +74,6 @@ const STYLE = `
 .pt-nav-settings:hover { border-color: var(--dsw-alias-border-l1, #b0b0b0); filter: brightness(.98); }
     .pt-nav-settings .glyph { color: var(--dsw-alias-state-business-primary, #4f7cff); font-size: 16px; }
 .pt-nav-settings:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,.05)); }
-.pt-lang { display: flex; align-items: center; gap: 8px; padding: 8px 10px 0; font-size: 13px;
-  color: var(--dsw-alias-label-caption, #888); }
-.pt-lang-opts { display: inline-flex; border: 1px solid var(--dsw-alias-border-l2, #d8d8d8);
-  border-radius: 999px; overflow: hidden; }
-.pt-lang-opt { border: 0; background: transparent; padding: 2px 10px; font-size: 12.5px; cursor: pointer;
-  color: var(--dsw-alias-label-secondary, #777); }
-.pt-lang-opt.on { background: var(--dsw-alias-state-business-primary, #4f7cff); color: #fff; font-weight: 600; }
 
 /* ---- 主区 ---- */
 .pt-main { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 28px 40px; }
@@ -364,13 +357,22 @@ const I18N = {
     send: 'Send', langLabel: 'Language', loading: 'Loading…',
   },
 }
-let savedLang = 'zh'
-try { savedLang = typeof localStorage !== 'undefined' ? localStorage.getItem('pictor-lang') : null } catch { /* 沙箱可能没有 storage */ }
+function readBandungLang() {
+  try {
+    if (typeof window !== 'undefined' && window.__dshAppDock__ && window.__dshAppDock__.lang) return window.__dshAppDock__.lang.get()
+    return typeof localStorage !== 'undefined' ? (localStorage.getItem('bandung-lang') === 'en' ? 'en' : 'zh') : 'zh'
+  } catch { return 'zh' }
+}
 const langStore = {
-  val: savedLang === 'en' ? 'en' : 'zh',
+  val: readBandungLang(),
   subs: new Set(),
   emit() { for (const f of this.subs) f() },
-  set(v) { this.val = v === 'en' ? 'en' : 'zh'; try { localStorage.setItem('pictor-lang', this.val) } catch { /* ignore */ } this.emit() },
+  set(v) {
+    this.val = v === 'en' ? 'en' : 'zh'
+    try { localStorage.setItem('bandung-lang', this.val) } catch { /* ignore */ }
+    if (typeof window !== 'undefined' && window.__dshAppDock__ && window.__dshAppDock__.lang) window.__dshAppDock__.lang.set(this.val)
+    this.emit()
+  },
   subscribe(f) { this.subs.add(f); return () => { this.subs.delete(f) } },
 }
 function useLang() {
@@ -382,16 +384,6 @@ function t(key, vars) {
   let text = (I18N[langStore.val] && I18N[langStore.val][key]) || I18N.zh[key] || key
   if (vars) { for (const k of Object.keys(vars)) text = text.replace('{' + k + '}', String(vars[k])) }
   return text
-}
-function LangSwitch() {
-  const lang = useLang()
-  const opt = (code, label) => h('button', {
-    className: 'pt-lang-opt' + (lang === code ? ' on' : ''),
-    onClick: () => langStore.set(code),
-  }, label)
-  return h('div', { className: 'pt-lang' },
-    h('span', { className: 'pt-lang-label' }, t('langLabel')),
-    h('div', { className: 'pt-lang-opts' }, opt('zh', '中文'), opt('en', 'English')))
 }
 
 // ---------- 工具 ----------
@@ -1662,7 +1654,7 @@ function Workbench(props) {
       h('button', { className: 'pt-nav-settings', onClick: () => setView('settings') },
         h('span', { className: 'glyph' }, '⚙'),
         t('navSettings')),
-      h(LangSwitch, null)))
+      ))
 
   return h('div', { className: 'pt-root pt-workbench' },
     nav,
@@ -1798,6 +1790,12 @@ function apply(ctx) {
   const registerWithDock = () => {
     if (typeof window === 'undefined' || !window.__dshAppDock__) return
     window.__dshAppDock__.register({ id: 'dsh-pictor', label: 'Pictor', icon: '◈', order: 20, onToggle: () => panel.toggle() })
+    if (window.__dshAppDock__.lang) {
+      window.__dshAppDock__.lang.subscribe(() => {
+        const v = window.__dshAppDock__.lang.get()
+        if (langStore.val !== v) { langStore.val = v; langStore.emit() }
+      })
+    }
   }
   if (typeof window !== 'undefined' && !window.__dshAppDock__) {
     window.addEventListener('dsh-app-dock:ready', registerWithDock, { once: true })

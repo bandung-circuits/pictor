@@ -62,7 +62,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "dsh-app-dock": "^0.1.0"
+    "dsh-app-dock": "^0.1.2"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",

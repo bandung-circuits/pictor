@@ -180,11 +180,11 @@ test('语言切换与每卡宽高比', async ({ page }) => {
   const first = page.locator('.pt-card select').first()
   await expect(first).toBeVisible()
   await expect(first).toHaveValue('16:9')
-  // 语言切换：English / 中文
-  await page.getByRole('button', { name: 'English' }).click()
+  // 语言切换走坞上的 Bandung 全局开关（English / 中文），打开的应用应联动重渲染
+  await click(page, '.dk-lang-opt[data-bandung-lang="en"]')
   await expect(page.getByRole('button', { name: 'Settings image model' })).toBeVisible({ timeout: 5000 })
   await expect(page.getByRole('button', { name: /方案设计/ })).toHaveCount(0)
-  await page.getByRole('button', { name: '中文' }).click()
+  await click(page, '.dk-lang-opt[data-bandung-lang="zh"]')
   await expect(page.getByRole('button', { name: '设置画图模型' })).toBeVisible({ timeout: 5000 })
   await expect(page.getByRole('button', { name: /方案设计/ })).toBeVisible()
 })
