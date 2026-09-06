@@ -51,9 +51,9 @@ const STYLE = `
 .pt-nav-titles { flex: 1; min-width: 0; }
 .pt-nav-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 .pt-nav-sub { font-size: 13px; color: var(--dsw-alias-label-caption, #8a8a8a); margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pt-nav-new { border: 0; background: var(--dsw-alias-state-business-primary, #4f7cff); color: #fff;
-  border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex: none; }
-.pt-nav-new:hover { filter: brightness(.95); }
+.pt-nav-new { border: 1px solid transparent; background: var(--dsw-alias-button-primary-fill, #4f7cff); color: var(--dsw-alias-label-primary-foreground, #fff);
+  border-radius: 8px; padding: 5px 12px; font-size: 13.5px; font-weight: 550; cursor: pointer; white-space: nowrap; flex: none; box-shadow: 0 1px 2px rgba(0,0,0,0.12); transition: background 140ms ease; }
+.pt-nav-new:hover { background: var(--dsw-alias-button-primary-hover, #3a6ae0); }
 .pt-nav-list { flex: 1; overflow-y: auto; padding: 4px 8px 12px; min-height: 0; }
 .pt-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
   padding: 9px 10px; border-radius: 10px; border: 0; background: transparent; cursor: pointer;
