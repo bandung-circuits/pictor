@@ -61,9 +61,12 @@ async function l1() {
 // ---------- L2：宿主集成（mock ctx） ----------
 
 function bootFake(dataDir, opts = {}) {
-  let handler = null
-  const connection = {
-    rpc: { handle: (path, fn) => { if (path === '/pictor') handler = fn } },
+  let rpcHandler = null
+  // webServer.register 捕获 /pictor/rpc prefix 路由的 HTTP handler（其余 asset 路由忽略）。
+  const webServer = {
+    register(route) {
+      if (route && route.kind === 'prefix' && route.path === '/pictor/rpc') rpcHandler = route.handler
+    },
   }
   const credentials = {
     stored: {},
@@ -83,12 +86,12 @@ function bootFake(dataDir, opts = {}) {
     },
   }
   const ctx = {
-    connection,
+    webServer,
     agents,
     sessionPersistence,
     ...(opts.noCredentials ? {} : { credentials }),
     get(name) {
-      const svc = { connection, agents, sessionPersistence }
+      const svc = { webServer, agents, sessionPersistence }
       if (!opts.noCredentials) svc.credentials = credentials
       return svc[name]
     },
@@ -97,13 +100,31 @@ function bootFake(dataDir, opts = {}) {
     running,
     _ctx: ctx,
     async call(endpoint, payload) {
-      const result = await handler(endpoint, payload || {})
+      const body = JSON.stringify(payload || {})
+      const req = {
+        method: 'POST',
+        url: '/pictor/rpc/' + encodeURIComponent(endpoint),
+        async *[Symbol.asyncIterator]() { yield Buffer.from(body) },
+      }
+      let out = ''
+      const res = { writeHead() {}, end(s) { out = s } }
+      await rpcHandler(req, res)
+      const result = JSON.parse(out)
       assert.ok(result && typeof result === 'object', 'RPC 必须返回对象信封')
       assert.equal(result.ok, true, '端点 ' + endpoint + ' 应成功')
       return result.value
     },
     async callErr(endpoint, payload) {
-      const result = await handler(endpoint, payload || {})
+      const body = JSON.stringify(payload || {})
+      const req = {
+        method: 'POST',
+        url: '/pictor/rpc/' + encodeURIComponent(endpoint),
+        async *[Symbol.asyncIterator]() { yield Buffer.from(body) },
+      }
+      let out = ''
+      const res = { writeHead() {}, end(s) { out = s } }
+      await rpcHandler(req, res)
+      const result = JSON.parse(out)
       assert.ok(result && result.ok === false, '端点 ' + endpoint + ' 应返回错误对象')
       assert.ok(result.error && typeof result.error.message === 'string', '错误必须是 {ok:false,error:{message}}')
       return result.error

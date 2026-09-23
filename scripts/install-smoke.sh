@@ -68,16 +68,16 @@ if [ "$ready" != "1" ]; then
 fi
 
 # RPC error leg: empty project.create must route and return a protocol error.
-RESP="$(curl -s -X POST "http://127.0.0.1:${PORT}/pictor/project.create" \
+RESP="$(curl -s -X POST "http://127.0.0.1:${PORT}/pictor/rpc/project.create" \
   -H 'content-type: application/json' \
-  -d '{"type":"client-request","rpcId":"smoke-1","method":"project.create","payload":{}}')"
+  -d '{}')"
 echo "$RESP" | grep -q '"ok":false' && echo "$RESP" | grep -q '"error"' \
   || { echo "FAIL: project.create(empty) should error — $RESP" >&2; exit 1; }
 
 # RPC success leg: config.get returns the dataRoot.
-RESP2="$(curl -s -X POST "http://127.0.0.1:${PORT}/pictor/config.get" \
+RESP2="$(curl -s -X POST "http://127.0.0.1:${PORT}/pictor/rpc/config.get" \
   -H 'content-type: application/json' \
-  -d '{"type":"client-request","rpcId":"smoke-2","method":"config.get","payload":{}}')"
+  -d '{}')"
 echo "$RESP2" | grep -q '"ok":true' && echo "$RESP2" | grep -q 'dataRoot' \
   || { echo "FAIL: config.get should return dataRoot — $RESP2" >&2; exit 1; }
 

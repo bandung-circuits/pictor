@@ -150,7 +150,7 @@ function initialPrompt(dir: string): string {
 }
 
 export function apply(ctx: any, config: any = {}) {
-  const connection = ctx.connection
+  const connection = ctx.get?.('connection')
   const base = config.dataDir || process.env.PICTOR_HOME || join(homedir(), '.pictor')
   const INDEX_JSON = join(base, 'index.json')
   const CONFIG_JSON = join(base, 'pictor-config.json')
@@ -239,7 +239,7 @@ export function apply(ctx: any, config: any = {}) {
 
   function credentialsService(): any {
     try {
-      return ctx.credentials || ctx.get?.('credentials')
+      return ctx.get?.('credentials')
     } catch {
       return null
     }
@@ -790,23 +790,41 @@ export function apply(ctx: any, config: any = {}) {
   }
 
   // ---------- 启动 ----------
-
-  if (connection && connection.rpc && connection.rpc.handle) {
-    connection.rpc.handle('/pictor', async (endpoint: string, payload: any) => {
-      try {
-        return { ok: true, value: await handle(endpoint, payload || {}) }
-      } catch (e: any) {
-        logError(`rpc:${endpoint}`, e)
-        return { ok: false, error: { code: 'internal', message: String(e?.message || e), details: {} } }
-      }
-    }, { authority: 'loopback' })
-  }
+  // RPC：经 webServer 的 /pictor/rpc/* prefix 路由直接暴露 JSON-RPC（不再走
+  // connection.rpc.handle——0.1.5 起该桥 owner.webServer 属性访问会抛
+  // "cannot get property webServer without inject"，与 pomasa 同改 HTTP 直出）。
 
   // 静态资源：空态占位图与 layout/style 预览图，固定白名单（文件名由目录枚举而来）。
-  const wsA = ctx.webServer || ctx.get?.('webServer')
+  const wsA = ctx.get?.('webServer')
   if (wsA && typeof wsA.register === 'function') {
     const IMG_CACHE = { 'content-type': 'image/png', 'cache-control': 'public, max-age=3600' }
     const WEBP_CACHE = { 'content-type': 'image/webp', 'cache-control': 'public, max-age=3600' }
+    // JSON-RPC：POST /pictor/rpc/<endpoint>，body=payload，返回 {ok,value}|{ok:false,error}。
+    const RPC_PREFIX = '/pictor/rpc'
+    wsA.register({ kind: 'prefix', path: RPC_PREFIX, handler: async (req: any, res: any) => {
+      try {
+        const pathname = new URL(req.url || '/', 'http://x').pathname
+        const endpoint = decodeURIComponent(pathname.slice(RPC_PREFIX.length + 1))
+        let payload: any = {}
+        if (req.method === 'POST' || req.method === 'PUT') {
+          const chunks: Buffer[] = []
+          for await (const c of req) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c))
+          const raw = Buffer.concat(chunks).toString('utf8')
+          if (raw) payload = JSON.parse(raw)
+        }
+        try {
+          const value = await handle(endpoint, payload || {})
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, value }))
+        } catch (e: any) {
+          logError(`rpc:${endpoint}`, e)
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: { code: 'internal', message: String(e?.message || e), details: {} } }))
+        }
+      } catch {
+        res.writeHead(400); res.end('bad request')
+      }
+    } })
     wsA.register({ kind: 'exact', path: '/pictor/asset/empty-state.png', handler: (_req, res) => {
       res.writeHead(200, IMG_CACHE); res.end(readFileSync(join(PLUGIN_ROOT, 'assets', 'empty-state.png')))
     } })
