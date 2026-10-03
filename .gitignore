@@ -16,3 +16,4 @@ test-results/
 playwright-report/
 *.tgz
 .dsh-e2e-url
+.dsh-ci/

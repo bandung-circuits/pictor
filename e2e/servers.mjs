@@ -9,7 +9,32 @@ import { join, dirname } from 'node:path'
 import { spawn, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-const PORT = Number(process.env.PIC_E2E_PORT || 43123)
+
+// 0.2.x 的兼容门会参考 registry 上"已发布"的插件元数据；本地 checkout 往往
+// 已放宽 peers 但新版本尚未发布（如 dock@0.1.4 vs 本地 0.1.5）。add 被拒时
+// 对该精确版本授 allow-version 再重试 —— 本地代码即真相，发布后走不进此分支。
+function addPluginWithCompatRetry(env, spec, published) {
+  const base = ['plugin', '--profile', 'web']
+  const opts = { env, stdio: 'ignore' }
+  const allowAll = () => {
+    for (const p of published) {
+      try { execFileSync('dsh', [...base, 'allow-version', p, '--dsh-version', process.env.DSH_VERSION, '--accept-risk'], opts) } catch { /* 忽略 */ }
+    }
+  }
+  try {
+    execFileSync('dsh', [...base, 'add', spec], opts)
+    return
+  } catch { /* 落入豁免重试 */ }
+  for (let round = 0; round < 3; round += 1) {
+    allowAll()
+    try {
+      execFileSync('dsh', [...base, 'add', spec], opts)
+      return
+    } catch { /* 再来一轮 */ }
+  }
+  // 最后一次把错误暴露出来
+  execFileSync('dsh', [...base, 'add', spec], { env, stdio: 'inherit' })
+}const PORT = Number(process.env.PIC_E2E_PORT || 43123)
 const HOME = mkdtempSync(join(tmpdir(), 'pictor-e2e-'))
 const DSH_HOME = mkdtempSync(join(tmpdir(), 'pictor-e2e-dsh-'))
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -51,8 +76,8 @@ seedFixture()
 // checkout — no dependency on a profile state left behind by other scripts.
 execFileSync('dsh', ['--profile', 'web', '--help'], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
 // 坞先装（bundles 先于 pictor 加载，register 发生在 pictor apply 之前，pictor 才入坞）
-execFileSync('dsh', ['plugin', '--profile', 'web', 'add', join(ROOT, '..', 'dsh-app-dock')], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
-execFileSync('dsh', ['plugin', '--profile', 'web', 'add', ROOT], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
+addPluginWithCompatRetry({ ...process.env, DSH_HOME }, join(ROOT, '..', 'dsh-app-dock'), ['dsh-app-dock@0.1.4','dsh-app-dock@0.1.3','dsh-app-dock@0.1.2'])
+addPluginWithCompatRetry({ ...process.env, DSH_HOME }, ROOT, ['dsh-pictor@0.2.3','dsh-pictor@0.2.2','dsh-pictor@0.2.1'])
 console.log('fixture home:', HOME)
 
 // 0.2.x 起 web host 强制 token 鉴权（cookie 由首次带 token 访问下发）。
