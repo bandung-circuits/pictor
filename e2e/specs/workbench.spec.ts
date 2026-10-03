@@ -1,6 +1,6 @@
 // L4a spec：fixture 驱动的确定性断言，覆盖工作台全状态空间。
 // 依赖：真实 dsh web host（servers.mjs）+ fixture ~/.pictor。
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../auth'
 import type { Page } from '@playwright/test'
 
 // 程序化 click：先等元素出现再 $eval 触发（$eval 不自动等待；locator.click 则被

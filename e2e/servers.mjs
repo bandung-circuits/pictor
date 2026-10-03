@@ -55,9 +55,19 @@ execFileSync('dsh', ['plugin', '--profile', 'web', 'add', join(ROOT, '..', 'dsh-
 execFileSync('dsh', ['plugin', '--profile', 'web', 'add', ROOT], { env: { ...process.env, DSH_HOME }, stdio: 'ignore' })
 console.log('fixture home:', HOME)
 
+// 0.2.x 起 web host 强制 token 鉴权（cookie 由首次带 token 访问下发）。
+// 这里捕获 dsh stdout 里的带 token URL 写盘，供 e2e/auth.ts 读取。
+const URL_FILE = join(ROOT, 'e2e', '.dsh-e2e-url')
+let dshOut = ''
 const dsh = spawn('dsh', ['--profile', 'web', '--no-open', '--port', String(PORT)], {
   env: { ...process.env, PICTOR_HOME: HOME, DSH_HOME },
-  stdio: ['ignore', 'inherit', 'inherit'],
+  stdio: ['ignore', 'pipe', 'inherit'],
+})
+dsh.stdout.on('data', (chunk) => {
+  dshOut += chunk
+  process.stdout.write(chunk)
+  const m = dshOut.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+/)
+  if (m) { try { writeFileSync(URL_FILE, m[0]) } catch { /* 忽略 */ } }
 })
 
 const log = (m) => console.log('[e2e server] ' + m)
@@ -65,7 +75,7 @@ async function ready() {
   for (let i = 0; i < 60; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${PORT}/`, { signal: AbortSignal.timeout(2000) })
-      if (res.ok) { log('web host ready'); return }
+      if (res.status < 500) { log('web host ready (status ' + res.status + ')'); return }
     } catch { /* 未就绪，继续等 */ }
     await new Promise((r) => setTimeout(r, 1000))
   }
@@ -83,6 +93,7 @@ process.on('SIGTERM', () => dsh.kill())
 process.on('SIGINT', () => dsh.kill())
 process.on('exit', () => {
   try { rmSync(DSH_HOME, { recursive: true, force: true }) } catch { /* 忽略 */ }
+  try { rmSync(URL_FILE, { force: true }) } catch { /* 忽略 */ }
 })
 
 // 保持进程存活直到被 Playwright 终止；输出路径便于调试。
