@@ -19,7 +19,7 @@ window.__ModuleLoader__.load({
   id: "dsh-pictor",
   factory: (require) => {
 ${body}
-    return { inject, apply }
+    return { inject, apply, _test }
   }
 })
 `
