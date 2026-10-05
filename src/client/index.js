@@ -553,15 +553,52 @@ async function pictorWorkspace(ctx) {
   return wid
 }
 
+/**
+ * 向会话投递 prompt。dsh 0.2.x 起 `sessions.binding(id)` 只对**已 retain**
+ * （scope 已 materialize）的会话有值：workspaces.connectWorkspace 返回 sessionId
+ * 后，视图侧要等导航流程里的 replaceMain 才 retain，紧接着 binding() 必是
+ * undefined——0.2.4 在 Harness 0.2.0-rc.2 上就报「会话无 prompt 通道」。
+ * 这里自己持引用：优先 `sessions.using(id, {source}, ...)`（retain → await ready →
+ * prompt → release），老版本没有 using 再回落 `binding()`。
+ */
+async function promptSession(ctx, sessionsSvc, sessionId, text) {
+  const content = [{ type: 'text', text: String(text || '') }]
+  const fail = (detail) => {
+    try {
+      pictorDiag(ctx, 'prompt:fail', {
+        detail,
+        using: typeof (sessionsSvc && sessionsSvc.using),
+        retain: typeof (sessionsSvc && sessionsSvc.retain),
+        binding: typeof (sessionsSvc && sessionsSvc.binding),
+      })
+    } catch { /* ignore */ }
+    return new Error(`会话无 prompt 通道（${detail}）`)
+  }
+  if (sessionsSvc && typeof sessionsSvc.using === 'function') {
+    await sessionsSvc.using(sessionId, { source: 'pictorSession' }, async (ref) => {
+      await ref.ready
+      const sess = ref.binding && ref.binding.session
+      if (!sess || typeof sess.prompt !== 'function') throw fail('using/binding.session.prompt')
+      await sess.prompt(content, 'queue')
+    })
+    return
+  }
+  const bound = sessionsSvc && typeof sessionsSvc.binding === 'function' ? sessionsSvc.binding(sessionId) : null
+  const sess = bound && bound.session
+  if (!sess || typeof sess.prompt !== 'function') throw fail('binding.session.prompt')
+  await sess.prompt(content, 'queue')
+}
+
 async function driveProjectSession(ctx, prompt) {
   const ws = (ctx.get && ctx.get('workspaces'))
   const sessionsSvc = (ctx.get && ctx.get('sessions'))
   const connect = sessionConnectFn(ctx, ws)
   const canCreate = !!(sessionsSvc && typeof sessionsSvc.create === 'function')
-  if (!(connect || canCreate) || !(sessionsSvc && typeof sessionsSvc.binding === 'function')) {
+  const canPrompt = !!(sessionsSvc && (typeof sessionsSvc.using === 'function' || typeof sessionsSvc.binding === 'function'))
+  if (!(connect || canCreate) || !canPrompt) {
     let uiWs = null
     try { uiWs = (ctx.get && ctx.get('uiWorkspace')) || null } catch { /* ignore */ }
-    const diag = { ws: !!ws, ses: !!sessionsSvc && typeof sessionsSvc.binding === 'function', uiws: !!uiWs, conn: !!connect, create: canCreate }
+    const diag = { ws: !!ws, ses: canPrompt, uiws: !!uiWs, conn: !!connect, create: canCreate }
     console.warn('[pictor] session services unavailable', diag)
     try { window.__pictor_diag = diag } catch { /* ignore */ }
     try { pictorDiag(ctx, 'drive:fail') } catch { /* ignore */ }
@@ -574,10 +611,7 @@ async function driveProjectSession(ctx, prompt) {
     sessionId = extractSid(created)
   }
   catch (e) { throw new Error('创建会话失败：' + String((e && e.message) || e)) }
-  const bound = sessionsSvc && typeof sessionsSvc.binding === 'function' ? sessionsSvc.binding(sessionId) : null
-  const sess = bound && bound.session
-  if (!sess || typeof sess.prompt !== 'function') throw new Error('会话无 prompt 通道')
-  await sess.prompt([{ type: 'text', text: String(prompt || '') }], 'queue')
+  await promptSession(ctx, sessionsSvc, sessionId, prompt)
   try { pictorDiag(ctx, 'drive:ok') } catch { /* ignore */ }
   return sessionId
 }
@@ -588,17 +622,11 @@ async function drivePrompt(ctx, id, message) {
   const p = await rpc(ctx, 'project.prompt', { id, message })
   if (p && p.sessionId) {
     const sessionsSvc = (ctx.get && ctx.get('sessions'))
-    if (sessionsSvc && typeof sessionsSvc.binding === 'function') {
-      try {
-        const bound = sessionsSvc.binding(p.sessionId)
-        const sess = bound && bound.session
-        if (sess && typeof sess.prompt === 'function') {
-          await sess.prompt([{ type: 'text', text: String(message || '') }], 'queue')
-          await rpc(ctx, 'project.attach', { id, sessionId: p.sessionId })
-          return p.sessionId
-        }
-      } catch { /* 会话对象失效则回落到新建 */ }
-    }
+    try {
+      await promptSession(ctx, sessionsSvc, p.sessionId, message)
+      await rpc(ctx, 'project.attach', { id, sessionId: p.sessionId })
+      return p.sessionId
+    } catch { /* 会话对象失效则回落到新建 */ }
   }
   const sessionId = await driveProjectSession(ctx, p && p.prompt)
   await rpc(ctx, 'project.attach', { id, sessionId })
@@ -1722,7 +1750,8 @@ function selectedLabel(ids) {
 
 // 最佳努力诊断：上报此 ctx 上工作区/会话服务的暴露情况（DSH Desktop 0.7.2
 // 调整了客户端 API），host 落盘 ~/.pictor/diag.jsonl，无需 DevTools 即可排查。
-function pictorDiag(ctx, phase) {
+// extra 追加自定义字段（如入口裁决 entry: dock|footer|none）。
+function pictorDiag(ctx, phase, extra) {
   let ws = null, ses = null, ui = null
   try { ws = ctx && (ctx.get && ctx.get('workspaces')) } catch { /* ignore */ }
   try { ses = ctx && (ctx.get && ctx.get('sessions')) } catch { /* ignore */ }
@@ -1737,6 +1766,7 @@ function pictorDiag(ctx, phase) {
     connectUi: !!(ui && typeof ui.connectWorkspace === 'function'),
     bind: !!(ses && typeof ses.binding === 'function'),
     href: typeof location !== 'undefined' ? location.href.slice(0, 80) : '',
+    ...(extra || {}),
   }
   try { fetch('/pictor/diag', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) } catch { /* ignore */ }
   console.warn('[pictor] diag', body)
@@ -1763,12 +1793,13 @@ function apply(ctx) {
   panel.close = () => { if (panel.open) { panel.open = false; panel.emit() } }
   panel.subscribe = (fn) => { panel.subs.add(fn); return () => { panel.subs.delete(fn) } }
   // 点选 dsh 左侧会话（或面板外任意处）自动收起工作台：
-  // 只排除面板本身；侧栏会话此刻在面板左侧始终可点（入口已交给应用坞）。
+  // 排除面板本身与自持入口按钮（footer 兜底按钮在面板外，不排除会「按下即收起、
+  // 松开又打开」，永远关不掉）；侧栏会话此刻在面板左侧始终可点。
   if (typeof document !== 'undefined') {
     document.addEventListener('mousedown', (e) => {
       if (!panel.open) return
       const t = e.target
-      if (t && typeof t.closest === 'function' && t.closest('.pt-shell-panel')) return
+      if (t && typeof t.closest === 'function' && (t.closest('.pt-shell-panel') || t.closest('.pt-footer-action'))) return
       panel.close()
     })
   }
@@ -1810,9 +1841,62 @@ function apply(ctx) {
         h(Workbench, { ctx, key: 'shell' })))
   }
 
-  // 入坞：dsh-app-dock 是依赖，入口交给坞（含 ready 延迟注册），自占 footer 槽移除。
+  // 入口：优先入坞（dsh-app-dock 是依赖，入口交给坞）；坞缺席时退回自持 footer
+  // 按钮。0.2.4 曾把入口完全交给坞，但 dsh 只装载 profile `dsh.profile.bundles`
+  // 里列出的插件行——dsh-app-dock 作为 npm 传递依赖不会自动成为 loader 行，于是
+  // 「只装 dsh-pictor」时坞的 client 半根本不进 __DSH_BOOT__，按钮不出现、无法
+  // 进入 GUI。自持入口只在确认坞缺席后注册（宽限期覆盖坞同批装载时的顺序差），
+  // 坞一到场就让位，不破坏「一个坞入口」的形态。
+  let footerEntryDispose = null
+  let dockRegistered = false
+
+  function FooterAction() {
+    useLang() // footer 文案随语言刷新
+    const open = usePanelOpen()
+    return h('div', {
+      className: 'pt-footer-action' + (open ? ' on' : ''),
+      role: 'button',
+      tabIndex: 0,
+      'data-pictor-entry': 'footer',
+      onClick: () => panel.toggle(),
+      onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panel.toggle() } },
+      title: open ? t('close') : t('open'),
+      'aria-expanded': open ? 'true' : 'false',
+    }, h('span', { className: 'glyph' }, '◈'), 'Pictor')
+  }
+
+  const dropFooterAction = () => {
+    if (!footerEntryDispose) return
+    const dispose = footerEntryDispose
+    footerEntryDispose = null
+    try { dispose() } catch { /* ignore */ }
+  }
+  // 注册成功 ≠ 渲染成功：「入口按钮没出来」要能区分这两者，渲染后回读一次 DOM
+  // 并落 diag，无 DevTools 也能定位。
+  const reportRendered = (entry, selector) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    window.setTimeout(() => {
+      try { pictorDiag(ctx, 'entry-rendered', { entry, dom: !!document.querySelector(selector) }) } catch { /* ignore */ }
+    }, 400)
+  }
+  const registerFooterAction = () => {
+    if (footerEntryDispose || dockRegistered) return
+    if (typeof window !== 'undefined' && window.__dshAppDock__) return
+    let dispose
+    try {
+      dispose = slots.inject('sidebar.footer.action', () => slots.register(
+        { name: 'sidebar.footer.action', id: 'dsh-pictor', order: 20, label: 'Pictor' },
+        () => h(FooterAction, null),
+      ))
+    } catch { return }
+    footerEntryDispose = typeof dispose === 'function' ? dispose : () => {}
+    try { pictorDiag(ctx, 'entry', { entry: 'footer', dock: false }) } catch { /* ignore */ }
+    reportRendered('footer', '.pt-footer-action')
+  }
   const registerWithDock = () => {
-    if (typeof window === 'undefined' || !window.__dshAppDock__) return
+    if (typeof window === 'undefined' || !window.__dshAppDock__) return false
+    if (dockRegistered) return true
+    dockRegistered = true
     window.__dshAppDock__.register({ id: 'dsh-pictor', label: 'Pictor', icon: '◈', order: 20, onToggle: () => panel.toggle() })
     if (window.__dshAppDock__.lang) {
       window.__dshAppDock__.lang.subscribe(() => {
@@ -1820,14 +1904,39 @@ function apply(ctx) {
         if (langStore.val !== v) { langStore.val = v; langStore.emit() }
       })
     }
+    dropFooterAction()
+    try { pictorDiag(ctx, 'entry', { entry: 'dock', dock: true }) } catch { /* ignore */ }
+    reportRendered('dock', '[data-dock-app="dsh-pictor"]')
+    return true
   }
-  if (typeof window !== 'undefined' && !window.__dshAppDock__) {
-    window.addEventListener('dsh-app-dock:ready', registerWithDock, { once: true })
+  if (typeof window !== 'undefined') {
+    if (!registerWithDock()) {
+      // HMR 会重新 apply：window 上的代次令牌保证只有最新一次 apply 的 ready 监听与
+      // 兜底定时器生效，避免旧闭包把坞注册到过期的 panel、或重复抢 footer 槽。
+      const gen = (window.__pictorEntryGen || 0) + 1
+      window.__pictorEntryGen = gen
+      const isCurrentEntry = () => window.__pictorEntryGen === gen
+      const onDockReady = () => {
+        if (!isCurrentEntry() || !registerWithDock()) return
+        window.removeEventListener('dsh-app-dock:ready', onDockReady)
+      }
+      if (window.__pictorDockReady) window.removeEventListener('dsh-app-dock:ready', window.__pictorDockReady)
+      window.__pictorDockReady = onDockReady
+      window.addEventListener('dsh-app-dock:ready', onDockReady)
+      // 坞与 pictor 同批装载时先后不定，给一个宽限期；超时仍无坞（坞没进 profile
+      // bundles / 装载失败）就自持入口，保证任何安装方式都有路进入 GUI。
+      window.setTimeout(() => {
+        if (!isCurrentEntry()) return
+        if (!registerWithDock()) registerFooterAction()
+      }, 1500)
+    }
   }
-  registerWithDock()
 
   slots.inject('shell.overlay', () => slots.register(
     { name: 'shell.overlay', id: 'dsh-pictor', order: 10, label: 'Pictor' },
     () => h(WorkbenchPanel, null),
   ))
 }
+
+// verify.mjs 的挂点（浏览器侧 __ModuleLoader__ 只取 inject/apply，多余导出无副作用）。
+const _test = { promptSession }

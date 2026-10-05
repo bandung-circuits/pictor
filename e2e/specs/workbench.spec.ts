@@ -10,8 +10,12 @@ const click = async (page: Page, selector: string, timeout?: number) => {
   await page.$eval(selector, (el: HTMLElement) => el.click())
 }
 
+// 入口二选一：装了 dsh-app-dock 时入口在坞里（data-dock-app），只装 pictor 时是
+// 自持的 footer 按钮（data-pictor-entry="footer"）。
+const ENTRY = '[data-dock-app="dsh-pictor"], [data-pictor-entry="footer"]'
+
 async function openWorkbench(page: Page) {
-  await click(page, '[data-dock-app="dsh-pictor"]', 60000)
+  await click(page, ENTRY, 60000)
   await page.waitForSelector('.pt-workbench', { timeout: 30000 })
 }
 

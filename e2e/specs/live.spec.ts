@@ -15,9 +15,11 @@ test('live：新建项目 → 会话真实提取出候选结构', async ({ page 
   }
   await page.waitForTimeout(500)
 
-  // 入坞后入口在坞：footer 图标网格直接点 Pictor（绕开空态引导层）
-  await page.waitForSelector('[data-dock-app="dsh-pictor"]')
-  await page.$eval('[data-dock-app="dsh-pictor"]', (el) => el.click())
+  // 入口二选一：入坞后在坞的图标网格里点 Pictor；只装 pictor（无坞）时是自持 footer
+  // 按钮。两者都绕开空态引导层。
+  const ENTRY = '[data-dock-app="dsh-pictor"], [data-pictor-entry="footer"]'
+  await page.waitForSelector(ENTRY)
+  await page.$eval(ENTRY, (el) => el.click())
   await page.waitForSelector('.pt-workbench')
   await page.getByRole('button', { name: '新建', exact: true }).click()
   await page.getByRole('button', { name: '粘贴内容' }).click()
