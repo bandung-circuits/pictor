@@ -8,17 +8,20 @@ Pictor turns a document into a set of infographics. It is a [DeepSeek Harness](h
 
 ## Installation
 
-Pictor is published to npm as `dsh-pictor`:
+Pictor is published to npm as `dsh-pictor`. Its GUI entry point lives in the shared
+**application dock**, so Pictor depends on the `dsh-app-dock` plugin: install the dock
+first, then Pictor.
 
 ```bash
-dsh plugin --profile <profile> add dsh-pictor
+npx @deepseek-ai/dsh plugin --profile web add dsh-app-dock
+npx @deepseek-ai/dsh plugin --profile web add dsh-pictor
 ```
 
-Replace `<profile>` with the target profile name (e.g. `desktop`, `web`) and start that profile. A **Pictor** button appears at the bottom-left of the dsh footer. On first use a `~/.pictor` home is provisioned and registered as a DSH workspace; project sessions group under "Pictor" in the sidebar. For development installs (local link, live-reload while editing source) see [docs/DESIGN.zh.md](docs/DESIGN.zh.md).
+Replace `web` with the target profile name (e.g. `desktop`, `web`) and start that profile. The **Pictor** button appears in the dock's icon grid at the bottom-left of the dsh footer. Only when the dock is missing does Pictor's client half fall back to a self-owned footer button after a short grace period — the two-step install above is the supported path. On first use a `~/.pictor` home is provisioned and registered as a DSH workspace; project sessions group under "Pictor" in the sidebar. For development installs (local link, live-reload while editing source) see [docs/DESIGN.zh.md](docs/DESIGN.zh.md).
 
-**For non-technical users**: install [DSH Desktop](https://dshdesktop.com/en/) (a community project, not an official DeepSeek product; it bundles the DeepSeek Harness runtime as a ready-to-run desktop app) and let the agent install the plugin for you — just send this one message in dsh:
+**For non-technical users**: install [DSH Desktop](https://dshdesktop.com/en/) (a community project, not an official DeepSeek product; it bundles the DeepSeek Harness runtime as a ready-to-run desktop app) and let the agent install both plugins for you — just send this one message in dsh:
 
-> Install the Pictor plugin from the npm package `dsh-pictor` into the current profile, restart if needed, and confirm when a Pictor button appears at the bottom left.
+> Install the shared dock plugin `dsh-app-dock` first and then the Pictor plugin `dsh-pictor` into the current profile, restart if needed, and confirm when a Pictor button appears in the app grid at the bottom left.
 
 ## Supported dsh version
 
@@ -28,7 +31,7 @@ Local CI: `bash scripts/ci.sh` runs the full suite (unit + host integration + pa
 
 ## Usage
 
-1. Open the workbench via the **Pictor** footer button and click **New project**: upload a file (`md` / `txt` / `docx` / `pdf` / image) or paste content (from Word or the web; formatting is kept, stored as sanitised HTML).
+1. Open the workbench via the **Pictor** button in the application dock (bottom-left footer) and click **New project**: upload a file (`md` / `txt` / `docx` / `pdf` / image) or paste content (from Word or the web; formatting is kept, stored as sanitised HTML).
 2. The session reads and normalises the source (`docx` / `pdf` / image / HTML → `document.md` via DSH tooling) and proposes candidate structures.
 3. Tick the structures and confirm; the session moves to proposal design. Tick a proposal, pick an aspect ratio, and click **Render selected**.
 4. Preview and download from the result grid; open the discussion panel to talk to the session at any point, or use the step bar to go back and redo existing artifacts.
@@ -38,7 +41,7 @@ Local CI: `bash scripts/ci.sh` runs the full suite (unit + host integration + pa
 ## Form
 
 - A `~/.pictor` home is created on first use (registered as a DSH workspace; sidebar shows "Pictor").
-- The only entry point is the bottom-left **Pictor** footer button, which toggles a `shell.overlay` workbench: projects on the left, the selected project on the right.
+- The only entry point is the bottom-left application dock's **Pictor** button (every Bandung app shares that dock; a self-owned footer button is used only when the dock is absent), which toggles a `shell.overlay` workbench: projects on the left, the selected project on the right.
 - Every project has three fixed steps: extract structures → design proposals → render images. After each human decision the **same session resumes** (agent-loop resume semantics); existing artifacts are never re-derived.
 - The project name is taken from the document's first line and can be renamed any time in the info bar (touches only `index.json`).
 - State is driven purely by file facts; running status is authoritative via the DSH agent registry; orchestration concerns are left to the session.

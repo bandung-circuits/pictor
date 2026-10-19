@@ -312,11 +312,163 @@ async function l2() {
   })
 }
 
+// ---------- L2c：client 入口裁决（坞缺席时的自持 footer 入口） ----------
+
+// 在假浏览器 realm 里装载 lib/client.js（factory 每次调用是一份独立闭包），断言入口
+// 裁决：坞缺席 → 宽限期后自持 sidebar.footer.action；坞在场 → 只入坞；坞迟到 → 让位
+// 并撤掉自持入口。背景（0.2.4 回归）：入口全交给 dsh-app-dock，而坞只是 npm 传递依赖，
+// 不会自动进 profile 的 dsh.profile.bundles，于是「只装 dsh-pictor」没有任何入口按钮。
+function bootClient({ dock } = {}) {
+  const source = readFileSync(new URL('./lib/client.js', import.meta.url), 'utf8')
+  const listeners = {}
+  const timers = []
+  const registrations = []
+  const dockCalls = []
+  let captured = null
+  const win = {
+    __ModuleLoader__: { load: (def) => { captured = def.factory } },
+    addEventListener: (name, fn) => { listeners[name] = fn },
+    removeEventListener: (name, fn) => { if (listeners[name] === fn) delete listeners[name] },
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length },
+  }
+  if (dock !== undefined) win.__dshAppDock__ = dock
+  const doc = {
+    getElementById: () => null,
+    createElement: () => ({ id: '', textContent: '' }),
+    head: { appendChild: () => {} },
+    addEventListener: () => {},
+  }
+  const fakeConsole = { info: () => {}, warn: () => {}, log: () => {}, error: () => {} }
+  new Function('window', 'document', 'localStorage', 'fetch', 'console', source)(
+    win, doc, { getItem: () => null, setItem: () => {} },
+    () => Promise.resolve({ ok: true, json: async () => ({}) }), fakeConsole)
+  const React = {
+    createElement: (...args) => ({ args }),
+    useState: (v) => [v, () => {}],
+    useEffect: () => {},
+    useSyncExternalStore: () => false,
+  }
+  const slots = {
+    inject: (key, cb) => {
+      const dispose = typeof cb === 'function' ? cb() : undefined
+      return typeof dispose === 'function' ? dispose : () => {}
+    },
+    register: (options) => {
+      registrations.push(options)
+      return () => {
+        const at = registrations.indexOf(options)
+        if (at >= 0) registrations.splice(at, 1)
+      }
+    },
+  }
+  const ctx = { get: (key) => (key === 'slots' ? slots : undefined) }
+  const moduleOf = () => captured((name) => (name === 'react' ? React : undefined))
+  return {
+    apply: () => moduleOf().apply(ctx),
+    testApi: () => moduleOf()._test,
+    has: (name) => registrations.some((r) => r.name === name),
+    setDock: (d) => { win.__dshAppDock__ = d },
+    fireReady: () => { if (listeners['dsh-app-dock:ready']) listeners['dsh-app-dock:ready']() },
+    runTimers: () => { for (const t of timers.splice(0, timers.length)) t.fn() },
+    dockCalls,
+  }
+}
+function fakeDock(calls) {
+  return { register: (app) => { calls.push(app); return true }, lang: null }
+}
+
+async function l2c() {
+  await check('L2c 坞缺席：宽限期后自持 footer 入口', () => {
+    const c = bootClient({})
+    c.apply()
+    assert.ok(c.has('shell.overlay'), 'shell.overlay 工作台已注册')
+    assert.ok(!c.has('sidebar.footer.action'), '宽限期内先不抢 footer 槽')
+    c.runTimers()
+    assert.ok(c.has('sidebar.footer.action'), '坞缺席时必须注册自持 footer 入口')
+    assert.equal(c.dockCalls.length, 0)
+  })
+  await check('L2c 坞在场：只入坞，不占 footer 槽', () => {
+    const calls = []
+    const c = bootClient({ dock: fakeDock(calls) })
+    c.apply()
+    c.runTimers()
+    assert.equal(calls.length, 1, '坞注册一次')
+    assert.equal(calls[0].id, 'dsh-pictor')
+    assert.ok(!c.has('sidebar.footer.action'), '有坞时不占 footer 槽')
+  })
+  await check('L2c 坞迟到：让位并撤掉自持入口', () => {
+    const calls = []
+    const c = bootClient({})
+    c.apply()
+    c.runTimers()
+    assert.ok(c.has('sidebar.footer.action'))
+    c.setDock(fakeDock(calls))
+    c.fireReady()
+    assert.equal(calls.length, 1, '坞到场后完成入坞')
+    assert.ok(!c.has('sidebar.footer.action'), '自持入口已撤，不留双入口')
+  })
+}
+
+// ---------- L2d：会话 prompt 投递（retain 后才取 binding） ----------
+
+// Harness 0.2.x 起 sessions.binding(id) 只对已 retain（scope 已 materialize）的会话
+// 有值；新建会话上直接 binding 必是 undefined。0.2.4 因此在 0.2.0-rc.2 上报
+// 「会话无 prompt 通道」。这里断言投递走 sessions.using（retain → ready → prompt）。
+const bareCtx = { get: () => undefined }
+
+async function l2d() {
+  await check('L2d 0.2.x：using retain 后经 binding.session.prompt 投递', async () => {
+    const api = bootClient({}).testApi()
+    const seen = []
+    const service = {
+      binding: () => { throw new Error('using 可用时不应回落 binding') },
+      using: async (id, options, op) => {
+        seen.push('using:' + id + ':' + (options && options.source))
+        await op({
+          ready: Promise.resolve(),
+          binding: { session: { prompt: (content, mode) => { seen.push('prompt:' + mode + ':' + content[0].text); return Promise.resolve() } } },
+        })
+      },
+    }
+    await api.promptSession(bareCtx, service, 'session-1', '你好')
+    assert.deepEqual(seen, ['using:session-1:pictorSession', 'prompt:queue:你好'])
+  })
+  await check('L2d using 在但会话面缺 prompt：报「无 prompt 通道」', async () => {
+    const api = bootClient({}).testApi()
+    const service = { using: async (id, options, op) => { await op({ ready: Promise.resolve(), binding: { session: {} } }) } }
+    await assert.rejects(() => api.promptSession(bareCtx, service, 's', 'x'), /会话无 prompt 通道/)
+  })
+  await check('L2d 老版本无 using：回落 binding', async () => {
+    const api = bootClient({}).testApi()
+    const seen = []
+    const service = { binding: (id) => ({ session: { prompt: (content, mode) => { seen.push(id + ':' + mode + ':' + content[0].text); return Promise.resolve() } } }) }
+    await api.promptSession(bareCtx, service, 's-legacy', 'hi')
+    assert.deepEqual(seen, ['s-legacy:queue:hi'])
+  })
+  await check('L2d 回归：binding 未 retain 返回 undefined 时也能投递', async () => {
+    const api = bootClient({}).testApi()
+    let usingCalled = false
+    const service = {
+      binding: () => undefined,
+      using: async (id, options, op) => {
+        usingCalled = true
+        await op({ ready: Promise.resolve(), binding: { session: { prompt: () => Promise.resolve() } } })
+      },
+    }
+    await api.promptSession(bareCtx, service, 's-new', 'x')
+    assert.ok(usingCalled, '必须自己 retain，不能只靠视图侧 binding')
+  })
+}
+
 async function main() {
   console.log('== L1 单元（纯函数） ==')
   await l1()
   console.log('== L2 宿主集成（mock ctx） ==')
   await l2()
+  console.log('== L2c client 入口裁决（假浏览器 realm） ==')
+  await l2c()
+  console.log('== L2d client 会话投递（retain 语义） ==')
+  await l2d()
   console.log('')
   if (ERRORS.length) {
     console.log('失败 ' + ERRORS.length + ' 项：')
